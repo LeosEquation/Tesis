@@ -1,0 +1,80 @@
+
+function BPJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, q::Array{U, 1}, 
+                     dx::Array{TaylorN{U}, 1}, n::T) where {U<:Real, T<:Integer}
+
+    for j in 1:n 
+        for i in 1:n-1
+            J[i, j] = Jeval[i, j]
+            J[n-1+i, j] = sum(evaluate(differentiate(differentiate(dx[k], i), j)) * q[n+k] for k in 1:n-1)
+            J[n+i-1, n+j] = Jeval[j, i]
+        end
+        J[2*n-1, j] = sum(evaluate(differentiate(differentiate(dx[k], n), j)) * q[n+k] for k in 1:n-1)
+        J[2*n-1, n+j] = Jeval[j, n]
+    end
+
+    for j in 1:n-1
+        J[j, n+j] = q[2*n]
+        J[j, 2*n] = q[n+j]
+        J[2*n, n+j] = 2.0 * q[n+j]
+    end
+
+end
+
+function BPSystem!(F::Array{U,1}, dxeval::Array{U, 1}, 
+                   q::Array{U, 1}, Jeval::Array{U, 2}, n::T) where {U<:Real, T<:Integer}
+
+    for i in 1:n-1
+        F[i] = dxeval[i] + q[2*n] * q[n+i]
+        F[n-1+i] = sum(q[n+k] * Jeval[k, i] for k in 1:n-1)
+    end
+
+    F[2*n-1] = sum(q[n+k] * Jeval[k, n] for k in 1:n-1)
+    F[2*n] = sum(q[n+k]^2 for k in 1:n-1) - 1.0
+
+end
+
+
+
+
+
+
+
+
+
+
+
+
+function BPJacobian!(J::Matrix{Float64}, Fx::Matrix{TaylorN{Float64}}, 
+    dx::Vector{TaylorN{Float64}}, x1::Vector{Float64}, Φ::Vector{Float64}, n::Int64)
+
+J[1:n, 1:n] .= TaylorSeries.jacobian(dx)
+
+for j in 1:n-2
+J[j, n+j] = x1[2*n-1]
+end
+
+J[1:n-2, 2*n-1] .= x1[n+1:2*n-2]
+
+for j in 1:n
+J[n-1:2*n-3, j] .= evaluate(differentiate.(Fx, j))' * x1[n+1:2*n-2]
+end
+
+J[n-1:2*n-3, n+1:2*n-2] .= evaluate(Fx)'
+
+J[2*n-2, n+1:2*n-2] .= 2.0 * x1[n+1:2*n-2]
+
+J[2*n-1, :] .= Φ
+
+end
+
+function BPSystem!(F::Vector{Float64}, Fx::Matrix{TaylorN{Float64}},
+  dx::Vector{TaylorN{Float64}},
+  x0::Vector{Float64}, x1::Vector{Float64},
+  Φ::Vector{Float64}, Δs::Float64, n::Int64)
+
+F[1:n-2] .= evaluate(dx[1:n-2]) + x1[2*n-1] * x1[n+1:2*n-2]
+F[(n-1):(2*n-3)] .= evaluate(Fx)' * x1[n+1:2*n-2]
+F[2*n-2] = dot(x1[n+1:2*n-2], x1[n+1:2*n-2]) - 1.0
+F[2*n-1] = dot(x1 - x0, Φ) - Δs
+
+end
