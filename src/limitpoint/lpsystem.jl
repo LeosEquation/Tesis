@@ -27,26 +27,33 @@ function LPSystem!(F::Vector{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{
 
 end
 
-function LPJacobian!(J::Matrix{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
-                     x1::Vector{Float64}, n::Int64)
+function LPJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, dx::Array{TaylorN{U}, 1},
+                     q::Array{U, 1}, n::T) where {U<:Real, T<:Integer}
 
-    @inbounds J[1:n+1, 1:n+1] .= TaylorSeries.jacobian(dx)
+    i1 = n-1
+    i2 = 2*n - 1
 
-    @inbounds for j in 1:n+1
-        J[n+1:2*n, j] .= evaluate(differentiate.(Fx, j)) * x1[n+2:2*n+1]
+    for i in 1:n-1
+        for j in 1:n
+            J[i, j] = Jeval[i, j]
+            J[i1+i, j] = sum(evaluate(differentiate(differentiate(dx[i], k), j)) * q[n+k] for k in 1:n-1)
+            if j < n
+                J[i1+i, n+j] = Jeval[i,j]
+            end
+        end
+        J[i2, n+i] = 2.0 * q[n+i]
     end
-
-    @inbounds J[n+1:2*n, n+2:2*n+1] .= evaluate(Fx)
-
-    @inbounds J[2*n+1, n+2:2*n+1] .= 2*x1[n+2:2*n+1]
 
 end
 
-function LPSystem!(F::Vector{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
-                   x1::Vector{Float64}, n::Int64)
+function LPSystem!(F::Array{U, 1}, Jeval::Array{U, 2}, dxeval::Array{U, 1},
+                   q::Array{U, 1}, n::T) where {U<:Real, T<:Integer}
 
-    @inbounds F[1:n+1] .= evaluate(dx)
-    @inbounds F[n+1:2*n] .= evaluate(Fx) * x1[n+2:2*n+1]
-    @inbounds F[2*n+1] = dot(x1[n+2:2*n+1], x1[n+2:2*n+1]) - 1.0
+    i1 = n-1
+    for i in 1:n-1
+        F[i] = dxeval[i]
+        F[i1+i] = sum(Jeval[i, k] * q[n+k] for k in 1:n-1)
+    end
+    F[2*n-1] = sum(q[n+i]^2 for i in 1:n-1) - 1.0
 
 end
