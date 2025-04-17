@@ -1,41 +1,63 @@
+function LPFinding!(f!, x::Array{U, 1}, params, v::Array{U, 1},
+                    q::Array{U, 1}, J::Array{U, 2}, F::Array{U, 1}, 
+                    dxeval::Array{U, 1}, Jeval::Array{U, 2}, xzero::Array{U, 1},
+                    dy::Array{TaylorN{U}, 1}, yaux::Array{TaylorN{U},1}, 
+                    ite::T, tol::U, n::T) where {U<:Real, T<:Integer}
 
+        q[1:n] .= x
 
-# x1 .= x0 .+ (Φ * Δs)
+        for i in 1:n-1
 
-#         f!(dx, x1[1:n+2] + δx, params, 0.0)
+                q[n+i] = real(v[i])
+
+        end
+
+        for i in 1:n
+                yaux[i][0][1] = q[i]
+        end
+
+        f!(dy, yaux, params, zero(U))
+
+        evaluate!(dy, xzero, dxeval)
+        TaylorSeries.jacobian!(Jeval, dy)
+
+        LPSystem!(F, Jeval, dxeval, q, n)
+        LPJacobian!(J, Jeval, dy, q, n)
+
+        k = 1
+
+        while k <= ite && norm(F) > tol
+
+                # println(" ite = $k : ||F|| = $(norm(F))")
+
+                if det(J) == 0.0
+                        break
+                end
+
+                q .-= J \ F 
+
+                for i in 1:n
+                        yaux[i][0][1] = q[i]
+                end
         
-#         for j in 1:n
-#             Fx[:, j] .= differentiate.(dx[1:n], j)
-#         end
+                f!(dy, yaux, params, zero(U))
+        
+                evaluate!(dy, xzero, dxeval)
+                TaylorSeries.jacobian!(Jeval, dy)
+        
+                LPSystem!(F, Jeval, dxeval, q, n)
+                LPJacobian!(J, Jeval, dy, q, n)
 
-#         LPJacobian!(J, Fx, dx, x0, x1, Φ, n)
-#         LPSystem!(F, Fx, dx, x0, x1, Φ, Δs, n)
+                k += 1
 
-#         j = 1
+        end
 
-#         while j <= ite && norm(F) > tol
+        if norm(F) > tol
+                @warn("The limit point tolerance was exceded.")
+        end 
 
-#             # println("$j : norm = $(norm(F))")
+        for i in 1:n
+                x[i] = q[i]
+        end
 
-#             if abs(det(J)) == 0.0
-#                 break
-#             end
-
-#             x1 .-= J \ F
-    
-#             f!(dx, x1[1:n+2] + δx, params, 0.0)
-#             for j in 1:n
-#                 Fx[:, j] .= differentiate.(dx[1:n], j)
-#             end
-
-#             LPJacobian!(J, Fx, dx, x0, x1, Φ, n)
-#             LPSystem!(F, Fx, dx, x0, x1, Φ, Δs, n)
-
-#             j += 1
-
-#         end
-
-        # if norm(F) >= tol
-        #     @warn("La norma del sistema no convergió. Abortando.")
-        #     break
-        # end
+end
