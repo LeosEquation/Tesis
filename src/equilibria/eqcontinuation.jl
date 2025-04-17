@@ -410,8 +410,8 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
 
     xaux = copy(δx)
     dx = zero(δx)
-    yaux = zero(δy)
-    dy = copy(δy)
+    yaux = copy(δy)
+    dy = zero(δy)
 
     ###
 
