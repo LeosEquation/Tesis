@@ -25,16 +25,16 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
 
     ###
 
-    # variable_names = [string("δx", TaylorSeries.subscriptify(i)) for i in 1:n]
+    variable_names = [string("δx", TaylorSeries.subscriptify(i)) for i in 1:n]
 
-    # TaylorSeries.set_variables(U, variable_names, order = 2)
+    TaylorSeries.set_variables(U, variable_names, order = 2)
 
     δx = TaylorN.(1:n, order = 1)
     δy = TaylorN.(1:n, order = 2)
 
-    xaux = zero(δx)
+    xaux = copy(δx)
     dx = zero(δx)
-    yaux = zero(δy)
+    yaux = copy(δy)
     dy = zero(δy)
 
     ###
@@ -78,6 +78,12 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
 
     ###
 
+    JLP = zeros(U, 2*n-1, 2*n-1)
+    FLP = zeros(U, 2*n-1)
+    qLP = zeros(U, 2*n-1)
+
+    ###
+
     JBP = zeros(U, 2*n, 2*n)
     FBP = zeros(U, 2*n)
     qBP = zeros(U, 2*n)
@@ -96,7 +102,7 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
     x[1, :] .= x0
 
     for i in 1:n
-        xaux[i] = δx[i]
+        # xaux[i] = δx[i]
         xaux[i][0][1] = x1[i]
     end
 
@@ -218,9 +224,46 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
 
         if sign(lptest0) != sign(lptest1) && sign(bptest0) == sign(bptest1)
 
-            push!(lp, copy(x1))
-            push!(lpeval, copy(λ))
-            push!(lpevec, eigvecs(Dx))
+            for j in 1:n
+                y[j] = 0.5 * (x1[j] + x0[j])
+                # yaux[j] = δy[j]
+                yaux[j][0][1] = y[j]
+            end
+
+            f!(dy, yaux, params, 0.0)
+
+            TaylorSeries.jacobian!(Jeval, dy)
+
+            for j in 1:n-1
+                for k in 1:n-1
+                    Dx[k,j] = Jeval[k, j]
+                end
+            end
+
+            Dxeigen = eigen(Dx)
+
+            idx = argmin(abs.(real.(Dxeigen.values)))
+
+            for j in 1:n-1
+                ν[j]  = real(Dxeigen.vectors[j, idx])
+            end
+
+            LPFinding!(f!, y, params, ν,
+                       qLP, JLP, FLP,
+                       dxeval, Jeval, xzero,
+                       dy, yaux, ite, tol, n)
+
+            for j in 1:n-1
+                for k in 1:n-1
+                    Dx[k,j] = Jeval[k, j]
+                end
+            end
+
+            Dxeigen = eigen(Dx)
+
+            push!(lp, copy(y))
+            push!(lpeval, Dxeigen.values)
+            push!(lpevec, Dxeigen.vectors)
 
         end
 
@@ -362,9 +405,9 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
 
     ###
 
-    # variable_names = [string("δx", TaylorSeries.subscriptify(i)) for i in 1:n]
+    variable_names = [string("δx", TaylorSeries.subscriptify(i)) for i in 1:n]
 
-    # TaylorSeries.set_variables(U, variable_names, order = 2)
+    TaylorSeries.set_variables(U, variable_names, order = 2)
 
     δx = TaylorN.(1:n, order = 1)
     δy = TaylorN.(1:n, order = 2)
