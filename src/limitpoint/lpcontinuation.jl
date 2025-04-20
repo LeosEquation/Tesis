@@ -1,77 +1,75 @@
 
 
-function LPContinuation(f!, x_ini::Vector{Float64}, v_ini::Vector{Float64}, params, Δs::Float64, maxsteps::Int64, tol::Float64, ite::Int64)
+function LPContinuation(f!, x_ini::Array{U, 1}, v_ini::Array{U, 1}, 
+                        params, Δs::U, maxsteps::T, tol::U, ite::T) where {U<:Real, T<:Integer}
 
     #-
 
-    n = length(v_ini) # Dimensión del sistema
+    n = length(x_ini)
 
-    x = Array{Float64,2}(undef, maxsteps, n+2) # Rama de equilibrio
+    x = Array{U, 2}(undef, maxsteps, n)
+    # vectors = Array{U,2}(undef, maxsteps, n-2)
 
     ###
 
-    # Inicializando TaylorN
+    variable_names = [string("δx", TaylorSeries.subscriptify(i)) for i in 1:n]
 
-    δx = set_variables("δx", numvars = n+2, order = 2)
+    TaylorSeries.set_variables(U, variable_names, order = 2)
+
+    δx = TaylorN.(1:n, order = 2)
+
+    xaux = copy(δx)
+    dx = zero(δx)
 
     ###
 
     # Inicializando valores previos
 
-    x0 = zeros(Float64, 2*n + 2)
-    x0[1:n+2] .= copy(x_ini)
-    x0[n+3:2*n+2] .= copy(v_ini)
+    q0 = zeros(U, 2*n - 2)
+    q0[1:n] .= x_ini
+    q0[n+1:2*n-2] .= v_ini
 
     ###
 
     # Inicializando valores posteriores
 
-    x1 = zeros(Float64, 2*n + 2)
-    x1[1:n+2] .= copy(x_ini)
-    x1[n+3:2*n+2] .= copy(v_ini)
+    q1 = zeros(U, 2*n - 2)
+    q1[1:n] .= x_ini
+    q1[n+1:2*n-2] .= v_ini
 
     ###
 
-    # Inicializando variables para bifurcaciones
-
-    dx = Array{TaylorN{Float64},1}(undef, n+2)
-    Fx = Array{TaylorN{Float64},2}(undef, n, n)
-
-    ###
-
-    # Inicializando valores reutilizables
-
-    λ = zeros(ComplexF64, n)
+    dx = Array{TaylorN{U},1}(undef, n)
 
     ###
 
     # Inicializando variables para la continuación
 
-    J = zeros(Float64, 2*n + 2, 2*n + 2)
-    F = zeros(Float64, 2*n + 2)
-    Φ = zeros(Float64, 2*n + 2)
-    v = zeros(Float64, 2*n + 2)
-    v[2*n + 2] = 1.0
+    J = zeros(U, 2*n - 2, 2*n - 2)
+    F = zeros(U, 2*n - 2)
+    Φ = zeros(U, 2*n - 2)
+    v = zeros(U, 2*n - 2)
+    v[2*n - 2] = one(U)
+
+    Jeval = zeros(U, n, n)
+    dxeval = zeros(U, n)
+    xzero = zeros(U, n)
 
     ###
 
     # Iniciamos el primer paso
 
-    x[1, :] .= x0[1:n+2]
-
-    f!(dx, x0[1:n+2] + δx, params, 0.0)
+    x[1, :] .= q0[1:n]
 
     for j in 1:n
-        Fx[:, j] .= differentiate.(dx[1:n], j)
+        xaux[j][0][1] = q0[j]
     end
 
-    # return dx
-    # LPSystem!(F, Fx, dx, x0, x1, Φ, Δs, n)
-    LPJacobian!(J, Fx, dx, x0, x1, Φ, n)
+    f!(dx, xaux, params, zero(U))
 
-    # return J
-
-    # @show F
+    TaylorSeries.jacobian!(Jeval, dx)
+    
+    LPJacobian!(J, Jeval, dx, q0, Φ, n)
 
     NS = nullspace(J)
 
@@ -92,38 +90,48 @@ function LPContinuation(f!, x_ini::Vector{Float64}, v_ini::Vector{Float64}, para
     i = 2
 
     while i <= maxsteps
-        # println("$i")
 
-        x1 .= x0 .+ (Φ * Δs)
-
-        f!(dx, x1[1:n+2] + δx, params, 0.0)
-        
-        for j in 1:n
-            Fx[:, j] .= differentiate.(dx[1:n], j)
+        for j in 1:2*n-2
+            q1[j] = q0[j] + Φ[j] * Δs
         end
 
-        LPJacobian!(J, Fx, dx, x0, x1, Φ, n)
-        LPSystem!(F, Fx, dx, x0, x1, Φ, Δs, n)
+        for j in 1:n
+            xaux[j][0][1] = q1[j]
+        end
+
+        f!(dx, xaux, params, 0.0)
+
+        TaylorSeries.evaluate!(dx, xzero, dxeval)
+        TaylorSeries.jacobian!(Jeval, dx)
+
+        LPJacobian!(J, Jeval, dx, q1, Φ, n)
+        LPSystem!(F, Jeval, dxeval, q1, q0, Φ, Δs, n)
+
+        # @show F
 
         j = 1
 
         while j <= ite && norm(F) > tol
 
-            # println("$j : norm = $(norm(F))")
+            # println(" ite = $j, ||F|| = $(norm(F))")
 
             if abs(det(J)) == 0.0
                 break
             end
 
-            x1 .-= J \ F
+            q1 .-= J \ F
     
-            f!(dx, x1[1:n+2] + δx, params, 0.0)
-            for j in 1:n
-                Fx[:, j] .= differentiate.(dx[1:n], j)
+            for k in 1:n
+                xaux[k][0][1] = q1[k]
             end
-
-            LPJacobian!(J, Fx, dx, x0, x1, Φ, n)
-            LPSystem!(F, Fx, dx, x0, x1, Φ, Δs, n)
+    
+            f!(dx, xaux, params, 0.0)
+    
+            TaylorSeries.evaluate!(dx, xzero, dxeval)
+            TaylorSeries.jacobian!(Jeval, dx)
+    
+            LPJacobian!(J, Jeval, dx, q1, Φ, n)
+            LPSystem!(F, Jeval, dxeval, q1, q0, Φ, Δs, n)
 
             j += 1
 
@@ -134,17 +142,15 @@ function LPContinuation(f!, x_ini::Vector{Float64}, v_ini::Vector{Float64}, para
             break
         end
 
-        x[i, :] .= x1[1:n+2]
-
-        # @show J
+        x[i, :] .= q1[1:n]
 
         Φ .= J \ v
 
         normalize!(Φ)
 
-        print("\r i = $i : norm = $(norm(F)) \t")
+        # print("\r i = $i : norm = $(norm(F)) \t")
 
-        x0 .= x1
+        q0 .= q1
 
         i += 1
 
