@@ -143,8 +143,8 @@ This function evaluate the differential `dξ` in the dynamical variable
     a₂ = ξ[2]
     x  = ξ[3]
     y  = ξ[4]
-    λ₋ = ξ[5]
-    λ₊ = ξ[6]
+    λ₊ = ξ[5]
+    λ₋ = ξ[6]
 
     κa₁ = - (κ * a₁)
     ωa₂ =   ω * a₂
