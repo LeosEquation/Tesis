@@ -1,6 +1,6 @@
 
 
-function LPContinuation(f!, x_ini::Vector{Float64}, v_ini::Vector{Float64}, params, Δs::Float64, maxsteps::Int64, tol::Float64, ite::Int64)
+function LPCContinuation(f!, x_ini::Vector{Float64}, v_ini::Vector{Float64}, params, Δs::Float64, maxsteps::Int64, tol::Float64, ite::Int64)
 
     #-
 

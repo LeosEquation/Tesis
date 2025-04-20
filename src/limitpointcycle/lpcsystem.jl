@@ -1,5 +1,5 @@
 
-function LPJacobian!(J::Matrix{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
+function LPCJacobian!(J::Matrix{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
                      x1::Vector{Float64}, Φ::Vector{Float64}, n::Int64)
 
     @inbounds J[1:n+2, 1:n+2] .= TaylorSeries.jacobian(dx)
@@ -16,7 +16,7 @@ function LPJacobian!(J::Matrix{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vecto
 
 end
 
-function LPSystem!(F::Vector{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
+function LPCSystem!(F::Vector{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
                    x0::Vector{Float64}, x1::Vector{Float64},
                    Φ::Vector{Float64}, Δs::Float64, n::Int64)
 
@@ -27,7 +27,7 @@ function LPSystem!(F::Vector{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{
 
 end
 
-function LPJacobian!(J::Matrix{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
+function LPCJacobian!(J::Matrix{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
                      x1::Vector{Float64}, n::Int64)
 
     @inbounds J[1:n+1, 1:n+1] .= TaylorSeries.jacobian(dx)
@@ -42,7 +42,7 @@ function LPJacobian!(J::Matrix{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vecto
 
 end
 
-function LPSystem!(F::Vector{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
+function LPCSystem!(F::Vector{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
                    x1::Vector{Float64}, n::Int64)
 
     @inbounds F[1:n+1] .= evaluate(dx)
