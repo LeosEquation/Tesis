@@ -1,7 +1,7 @@
 function BPFinding!(f!, x::Array{U, 1}, params, v::Array{U, 1}, 
                     q::Array{U, 1}, J::Array{U, 2}, F::Array{U, 1}, 
                     dxeval::Array{U, 1}, Jeval::Array{U, 2}, xzero::Array{U, 1},
-                    dy::Array{TaylorN{U}, 1}, yaux::Array{TaylorN{U},1}, δy::Array{TaylorN{U},1}, 
+                    dy::Array{TaylorN{U}, 1}, yaux::Array{TaylorN{U},1}, 
                     ite::T, tol::U, n::T) where {U<:Real, T<:Integer}
 
     @inbounds q[1:n] .= x
@@ -52,6 +52,9 @@ function BPFinding!(f!, x::Array{U, 1}, params, v::Array{U, 1},
 
     for i in 1:n
         x[i] = q[i]
+    end
+    for i in 1:n-1
+            v[i] = q[n+i]
     end
 
 end
