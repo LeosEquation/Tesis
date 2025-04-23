@@ -5,12 +5,7 @@ function LPFinding!(f!, x::Array{U, 1}, params, v::Array{U, 1},
                     ite::T, tol::U, n::T) where {U<:Real, T<:Integer}
 
         q[1:n] .= x
-
-        for i in 1:n-1
-
-                q[n+i] = real(v[i])
-
-        end
+        q[n+1:2*n-1] .= v
 
         for i in 1:n
                 yaux[i][0][1] = q[i]
@@ -28,7 +23,6 @@ function LPFinding!(f!, x::Array{U, 1}, params, v::Array{U, 1},
 
         while k <= ite && norm(F) > tol
 
-                # println(" ite = $k : ||F|| = $(norm(F))")
 
                 if det(J) == 0.0
                         break
@@ -58,6 +52,10 @@ function LPFinding!(f!, x::Array{U, 1}, params, v::Array{U, 1},
 
         for i in 1:n
                 x[i] = q[i]
+        end
+
+        for i in 1:n-1
+                v[i] = q[n+i]
         end
 
 end

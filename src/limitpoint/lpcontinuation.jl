@@ -1,14 +1,14 @@
 
 
-function LPContinuation(f!, x_ini::Array{U, 1}, v_ini::Array{U, 1}, 
-                        params, Δs::U, maxsteps::T, tol::U, ite::T) where {U<:Real, T<:Integer}
+function LPContinuation(f!, lp_ini::LimitPoint{U}, 
+                        params, pmin::Array{U, 1}, pmax::Array{U, 1}, 
+                        Δs::U, maxsteps::T, tol::U, ite::T) where {U<:Real, T<:Integer}
 
     #-
 
-    n = length(x_ini)
-
+    n = length(lp_ini.x)
     x = Array{U, 2}(undef, maxsteps, n)
-    # vectors = Array{U,2}(undef, maxsteps, n-2)
+
 
     ###
 
@@ -26,16 +26,16 @@ function LPContinuation(f!, x_ini::Array{U, 1}, v_ini::Array{U, 1},
     # Inicializando valores previos
 
     q0 = zeros(U, 2*n - 2)
-    q0[1:n] .= x_ini
-    q0[n+1:2*n-2] .= v_ini
+    q0[1:n] .= lp_ini.x
+    q0[n+1:2*n-2] .= lp_ini.vector
 
     ###
 
     # Inicializando valores posteriores
 
     q1 = zeros(U, 2*n - 2)
-    q1[1:n] .= x_ini
-    q1[n+1:2*n-2] .= v_ini
+    q1[1:n] .= lp_ini.x
+    q1[n+1:2*n-2] .= lp_ini.vector
 
     ###
 
@@ -74,13 +74,13 @@ function LPContinuation(f!, x_ini::Array{U, 1}, v_ini::Array{U, 1},
     NS = nullspace(J)
 
     if size(NS, 2) == 0
-        @show(J)
-        error("No hay dirección a seguir")
+        # @show(J)
+        error("The jacobian in the point has not nullspace. Exiting.")
     end
 
     if size(NS, 2) > 1
-        display(NS)
-        error("El espacio nulo del jacobiano es de dimensión 2")
+        # display(NS)
+        error("The jacobian in the point is 2 or more corank. Exiting.")
     end
 
     Φ .= NS
@@ -89,7 +89,7 @@ function LPContinuation(f!, x_ini::Array{U, 1}, v_ini::Array{U, 1},
 
     i = 2
 
-    while i <= maxsteps
+    while i <= maxsteps && pmin[1] <= q1[n-1] <= pmax[1] && pmin[2] <= q1[n] <= pmax[2]
 
         for j in 1:2*n-2
             q1[j] = q0[j] + Φ[j] * Δs
@@ -107,13 +107,9 @@ function LPContinuation(f!, x_ini::Array{U, 1}, v_ini::Array{U, 1},
         LPJacobian!(J, Jeval, dx, q1, Φ, n)
         LPSystem!(F, Jeval, dxeval, q1, q0, Φ, Δs, n)
 
-        # @show F
-
         j = 1
 
         while j <= ite && norm(F) > tol
-
-            # println(" ite = $j, ||F|| = $(norm(F))")
 
             if abs(det(J)) == 0.0
                 break
@@ -137,8 +133,8 @@ function LPContinuation(f!, x_ini::Array{U, 1}, v_ini::Array{U, 1},
 
         end
 
-        if norm(F) >= tol
-            @warn("La norma del sistema no convergió. Abortando.")
+        if j > ite
+            @warn("Tolerance branch was exceded. Exiting. ")
             break
         end
 
@@ -147,8 +143,6 @@ function LPContinuation(f!, x_ini::Array{U, 1}, v_ini::Array{U, 1},
         Φ .= J \ v
 
         normalize!(Φ)
-
-        # print("\r i = $i : norm = $(norm(F)) \t")
 
         q0 .= q1
 
