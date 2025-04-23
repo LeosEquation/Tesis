@@ -1,16 +1,13 @@
 
 
-function BPContinuation(f!, x_ini::Vector{Float64}, params, Δs::Float64, maxsteps::Int64, tol::Float64, ite::Int64)
+function BPContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::Array{U, 1}, pmax::Array{U, 1},
+                        Δs::U, maxsteps::T, tol::U, ite::T) where {U<:Real, T<:Integer}
 
 #-
 
-    n = length(x_ini) # Dimensión del sistema
+    n = length(bp_ini.x) # Dimensión del sistema
 
     x = Array{Float64,2}(undef, maxsteps, n) # Rama de equilibrio
-
-###
-
-# Inicializando TaylorN
 
     variable_names = [string("δx", TaylorSeries.subscriptify(i)) for i in 1:n]
 
@@ -21,136 +18,126 @@ function BPContinuation(f!, x_ini::Vector{Float64}, params, Δs::Float64, maxste
     xaux = copy(δx)
     dx = zero(δx)
 
-    q0 = zeros(U, 2*n + 1)
-    q0[1:n] .= x_ini
-    q0[n+1:2*n-2] .= v_ini
+    q0 = zeros(U, 2*n - 1)
+    q0[1:n] .= bp_ini.x
+    q0[n+1:2*n-2] .= bp_ini.vector
 
-    q1 = zeros(U, 2*n + 1)
-    q1[1:n] .= x_ini
-    q1[n+1:2*n-2] .= v_ini
-
-    ###
+    q1 = zeros(U, 2*n - 1)
+    q1[1:n] .= bp_ini.x
+    q1[n+1:2*n-2] .= bp_ini.vector
 
     dx = Array{TaylorN{U},1}(undef, n)
 
-    ###
-
-    # Inicializando variables para la continuación
-
-    J = zeros(U, 2*n + 1, 2*n - 2)
-    F = zeros(U, 2*n - 2)
-    Φ = zeros(U, 2*n - 2)
-    v = zeros(U, 2*n - 2)
-    v[2*n - 2] = one(U)
+    J = zeros(U, 2*n - 1, 2*n - 1)
+    F = zeros(U, 2*n - 1)
+    Φ = zeros(U, 2*n - 1)
+    v = zeros(U, 2*n - 1)
+    v[2*n - 1] = one(U)
 
     Jeval = zeros(U, n, n)
     dxeval = zeros(U, n)
     xzero = zeros(U, n) 
+    
+    ###
 
-###
+    for j in 1:n
+        x[1, j] = q0[j]
+    end
 
-# Iniciamos el primer paso
+    for j in 1:n
+        xaux[j][0][1] = q0[j]
+    end
 
-x[1, :] .= x1#[1:n]
+    f!(dx, xaux, params, zero(U))
 
-f!(dx, x1[1:n] + δx, params, 0.0)
+    TaylorSeries.jacobian!(Jeval, dx)
+    TaylorSeries.evaluate!(dx, xzero, dxeval)
 
-for j in 1:n-1
-    Fx[:, j] .= differentiate.(dx[1:n-2], j)
-end
+    BPJacobian!(J, Jeval, q0, dx, Φ, n)
+    BPSystem!(F, dxeval, Jeval, q1, q0, Φ, Δs, n)
 
-@assert rank(evaluate(Fx)) == n-3 "La bifurcación no es un Branch Point (BP)"
+    # @show J
+    # @show F
 
-x1[n+1:2*n-2] .= nullspace(evaluate(Fx)')
+    NS = nullspace(J)
 
-BPJacobian!(J, Fx, dx, x1, Φ, n)
-BPSystem!(F, Fx, dx, x0, x1, Φ, Δs, n)
+    if size(NS, 2) == 0
+        error("No hay dirección a seguir")
+    end
 
-# @show F
+    if size(NS, 2) > 1
+        error("Hay más de una dirección inicial a seguir")
+    end
 
-# return J
+    Φ .= NS
 
-NS = nullspace(J)
+    ###
 
-if size(NS, 2) == 0
-@show(J)
-error("No hay dirección a seguir")
-end
+    i = 2
 
-if size(NS, 2) > 1
-display(NS)
-error("Hay más de una dirección inicial a seguir")
-end
+    while i <= maxsteps && pmin[1] <= q1[n-1] <= pmax[1] && pmin[2] <= q1[n] <= pmax[2]
 
-x[1, :] .= x1
+        for j in 1:2*n-1
+            q1[j] = q0[j] + Φ[j] * Δs
+        end
 
-Φ .= NS
+        for j in 1:n
+            xaux[j][0][1] = q1[j]
+        end
 
-#
+        f!(dx, xaux, params, zero(U))
 
-i = 2
+        TaylorSeries.jacobian!(Jeval, dx)
+        TaylorSeries.evaluate!(dx, xzero, dxeval)
 
-while i <= maxsteps
-# println(" i = $i :")
+        BPJacobian!(J, Jeval, q1, dx, Φ, n)
+        BPSystem!(F, dxeval, Jeval, q1, q0, Φ, Δs, n)
 
-x1 .= x0 .+ (Φ * Δs)
+        j = 1
 
-f!(dx, x1[1:n] + δx, params, 0.0)
+        while j <= ite && norm(F) > tol
 
-for j in 1:n-1
-    Fx[:, j] .= differentiate.(dx[1:n-2], j)
-end
+            if abs(det(J)) == 0.0
+                break
+            end
 
-BPJacobian!(J, Fx, dx, x1, Φ, n)
-BPSystem!(F, Fx, dx, x0, x1, Φ, Δs, n)
+            q1 .-= J \ F
 
-# return F, J
+            for k in 1:n
+                xaux[k][0][1] = q1[k]
+            end
 
-j = 1
+            f!(dx, xaux, params, zero(U))
 
-while j <= ite && norm(F) > tol
+            TaylorSeries.jacobian!(Jeval, dx)
+            TaylorSeries.evaluate!(dx, xzero, dxeval)
 
-# println("j = $j : norm = $(norm(F))")
+            BPJacobian!(J, Jeval, q1, dx, Φ, n)
+            BPSystem!(F, dxeval, Jeval, q1, q0, Φ, Δs, n)
 
-if abs(det(J)) == 0.0
-break
-end
+            j += 1
 
-x1 .-= J \ F
+        end
 
-f!(dx, x1[1:n] + δx, params, 0.0)
+        if norm(F) >= tol
+            @warn("La norma del sistema no convergió. Abortando.")
+            break
+        end
 
-for j in 1:n-1
-    Fx[:, j] .= differentiate.(dx[1:n-2], j)
-end
+        for j in 1:n
+            x[i, j] = q1[j]
+        end
 
-BPJacobian!(J, Fx, dx, x1, Φ, n)
-BPSystem!(F, Fx, dx, x0, x1, Φ, Δs, n)
+        Φ .= J \ v
 
+        normalize!(Φ)
 
-j += 1
+        q0 .= q1
 
-end
+        i += 1
 
-if norm(F) >= tol
-@warn("La norma del sistema no convergió. Abortando.")
-break
-end
+    end
 
-x[i, :] .= x1#[1:n]
-
-Φ .= J \ v
-
-normalize!(Φ)
-
-print("\r i = $i : norm = $(norm(F)) \t")
-
-x0 .= x1
-
-i += 1
-
-end
-
-return x[1:i-1, 1:n]
+    return x[1:i-1, :]
 
 end
