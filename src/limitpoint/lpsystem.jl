@@ -9,7 +9,8 @@ function LPJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, dx::Array{TaylorN{U}, 1
 
         for j in 1:n
             J[i, j] = Jeval[i, j]
-            J[i1+i, j] = sum(evaluate(differentiate(differentiate(dx[i], k), j)) * q[n+k] for k in 1:n-2)
+            # J[i1+i, j] = sum(evaluate(differentiate(differentiate(dx[i], k), j)) * q[n+k] for k in 1:n-2)
+            J[i1+i, j] = sum(differentiate(ntuple(l -> count(==(l), (k, j)), n), dx[i]) * q[n+k] for k in 1:n-2)
             if j < (n - 1) 
                 J[i1+i, n+j] = Jeval[i, j]
             end
@@ -44,9 +45,10 @@ function LPJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, dx::Array{TaylorN{U}, 1
     for i in 1:n-1
         for j in 1:n
             J[i, j] = Jeval[i, j]
-            J[i1+i, j] = sum(evaluate(differentiate(differentiate(dx[i], k), j)) * q[n+k] for k in 1:n-1)
+            # J[i1+i, j] = sum(evaluate(differentiate(differentiate(dx[i], k), j)) * q[n+k] for k in 1:n-1)
+            J[i1+i, j] = sum(differentiate(ntuple(l -> count(==(l), (k, j)), n), dx[i]) * q[n+k] for k in 1:n-1)
             if j < n
-                J[i1+i, n+j] = Jeval[i,j]
+                J[i1+i, n+j] = Jeval[i, j]
             end
         end
         J[i2, n+i] = 2.0 * q[n+i]

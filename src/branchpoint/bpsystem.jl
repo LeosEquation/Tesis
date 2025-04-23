@@ -4,10 +4,10 @@ function BPJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, q::Array{U, 1},
     for j in 1:n 
         for i in 1:n-1
             J[i, j] = Jeval[i, j]
-            J[n-1+i, j] = sum(evaluate(differentiate(differentiate(dx[k], i), j)) * q[n+k] for k in 1:n-1)
+            J[n-1+i, j] = sum(differentiate(ntuple(l -> count(==(l), (i, j)), n), dx[k]) * q[n+k] for k in 1:n-1)
             J[n+i-1, n+j] = Jeval[j, i]
         end
-        J[2*n-1, j] = sum(evaluate(differentiate(differentiate(dx[k], n), j)) * q[n+k] for k in 1:n-1)
+        J[2*n-1, j] = sum(differentiate(ntuple(l -> count(==(l), (n, j)), n), dx[k]) * q[n+k] for k in 1:n-1)
         J[2*n-1, n+j] = Jeval[j, n]
     end
 
@@ -43,10 +43,10 @@ function BPJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, q::Array{U, 1},
     for j in 1:n 
         for i in 1:n-1
             J[i, j] = Jeval[i, j]
-            J[n-1+i, j] = sum(evaluate(differentiate(differentiate(dx[k], i), j)) * q[n+k] for k in 1:n-1)
+            J[n-1+i, j] = sum(differentiate(ntuple(l -> count(==(l), (i, j)), n), dx[k]) * q[n+k] for k in 1:n-1)
             J[n+i-1, n+j] = Jeval[j, i]
         end
-        J[2*n-1, j] = sum(evaluate(differentiate(differentiate(dx[k], n), j)) * q[n+k] for k in 1:n-1)
+        J[2*n-1, j] = sum(differentiate(ntuple(l -> count(==(l), (n, j)), n), dx[k]) * q[n+k] for k in 1:n-1)
         J[2*n-1, n+j] = Jeval[j, n]
     end
 
