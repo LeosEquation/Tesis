@@ -1,26 +1,19 @@
-function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, params, 
+function EquilibriaContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::U, pmax::U,
                                 Δs::U, maxsteps::T, tol::U, ite::T) where {U<:Real, T<:Integer}
 
     ###
 
-    n = length(x_ini)
-    xzero = zero(x_ini)
+    n = length(bp_ini.x)
+    xzero = zero(bp_ini.x)
 
     ###
 
     x = Array{U,2}(undef, maxsteps, n)
-    realev = Array{U,2}(undef, maxsteps, n-1)
-    imagev = Array{U,2}(undef, maxsteps, n-1)
-    lp = Array{U, 1}[]
-    lpeval= Array{Complex{U}, 1}[]
-    lpevec= Array{Complex{U}, 2}[]
-    bp = Array{U, 1}[]
-    bpdir  = Array{U, 1}[]
-    bpeval= Array{Complex{U}, 1}[]
-    bpevec= Array{Complex{U}, 2}[]
-    h = Array{U, 1}[]
-    heval= Array{Complex{U}, 1}[]
-    hevec= Array{Complex{U}, 2}[]
+    realeigen = Array{U,2}(undef, maxsteps, n-1)
+    imageigen = Array{U,2}(undef, maxsteps, n-1)
+    lp = LimitPoint{U}[]
+    bp = BranchPoint{U}[]
+    hp = HopfPoint{U}[]
     stbl = Array{Bool,1}(undef, maxsteps)
 
     ###
@@ -39,17 +32,19 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
 
     ###
 
-    x0 = copy(x_ini)
+    x0 = copy(bp_ini.x)
     lptest0 = 0.0
     htest0  = 0.0
     bptest0 = 0.0
+    Φ0 = zero(bp_ini.x)
 
     ###
 
-    x1 = copy(x_ini)
+    x1 = copy(bp_ini.x)
     lptest1 = 0.0
     htest1  = 0.0
     bptest1 = 0.0
+    Φ1 = zero(bp_ini.x)
 
     ###
 
@@ -61,18 +56,18 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
     ###
     
     λ = Array{Complex{U}, 1}(undef, n-1)
-    ν = Array{U, 1}(undef, n-1)
     Dx = Array{U, 2}(undef, n-1, n-1)
+    DxT = Array{U, 2}(undef, n-1, n-1)
 
     ###
 
-    y = copy(x_ini)
+    y = copy(bp_ini.x)
 
     ###
 
     J = zeros(U, n, n)
     F = zeros(U, n)
-    Φ = zeros(U, n)
+    # Φ = zeros(U, n)
     v = zeros(U, n)
     v[n] = one(U)
 
@@ -81,6 +76,8 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
     JLP = zeros(U, 2*n-1, 2*n-1)
     FLP = zeros(U, 2*n-1)
     qLP = zeros(U, 2*n-1)
+    vLP = zeros(U, n-1)
+    λLP = zero(U)
 
     ###
 
@@ -88,14 +85,22 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
     FBP = zeros(U, 2*n)
     qBP = zeros(U, 2*n)
     ΦBP = zeros(U, n)
+    wBP = zeros(U, n-1)
+    λBP = zero(U)
+    h1 = zero(U)
+    h0 = zero(U)
 
     ###
 
     JH = zeros(U, 3*n-1, 3*n-1)
     FH = zeros(U, 3*n-1)
     qH = zeros(U, 3*n-1)
-    w1 = zeros(U, n-1)
-    w2 = zeros(U, n-1)
+    realvH = zeros(U, n-1)
+    imagvH = zeros(U, n-1)
+    realwH = zeros(U, n-1)
+    imagwH = zeros(U, n-1)
+    ωH = zero(U)
+    λH = zero(U)
 
     ###
 
@@ -116,12 +121,12 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
         error("This point is not a branch point. Exiting.")
     end
 
-    a, b = NS \ Φ_ini
+    a, b = NS \ bp_ini.dir
 
-    Φ .= - b * NS[:, 1] + a * NS[:, 2]
+    Φ0 .= - b * NS[:, 1] + a * NS[:, 2]
 
-    EquilibriaJacobian!(J, dx, Φ, n)
-    EquilibriaSystem!(F, dx, xzero, x1, x0, Φ, Δs, n)
+    EquilibriaJacobian!(J, dx, Φ0, n)
+    EquilibriaSystem!(F, dx, xzero, x1, x0, Φ0, Δs, n)
 
     for j in 1:n-1
         for i in 1:n-1
@@ -133,16 +138,16 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
 
     BiProduct!(2.0, Dx, LinearAlgebra.I, C, n-1)
 
-    lptest0 = Φ[n]
+    lptest0 = Φ0[n]
     bptest0 = det(J)
     htest0  = det(C)
 
     for j in 1:n-1
-        realev[1, j] = real(λ[j])
-        imagev[1, j] = imag(λ[j])
+        realeigen[1, j] = real(λ[j])
+        imageigen[1, j] = imag(λ[j])
     end
 
-    if all(realev[1, :] .<= 0.0)
+    if all(realeigen[1, :] .<= 0.0)
         stbl[1] = true
     else
         stbl[1] = false
@@ -152,16 +157,16 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
 
     i = 2
 
-    while i <= maxsteps
+    while i <= maxsteps && (pmin <= x1[n] <= pmax)
 
         for k in 1:n
-            x1[k] = x0[k] + Δs * Φ[k]
+            x1[k] = x0[k] + Δs * Φ0[k]
             xaux[k][0][1] = x1[k]
         end
 
         f!(dx, xaux, params, 0.0)
-        EquilibriaJacobian!(J, dx, Φ, n)
-        EquilibriaSystem!(F, dx, xzero, x1, x0, Φ, Δs, n)
+        EquilibriaJacobian!(J, dx, Φ0, n)
+        EquilibriaSystem!(F, dx, xzero, x1, x0, Φ0, Δs, n)
 
         j = 1
 
@@ -178,8 +183,8 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
             end
 
             f!(dx, xaux, params, 0.0)
-            EquilibriaJacobian!(J, dx, Φ, n)
-            EquilibriaSystem!(F, dx, xzero, x1, x0, Φ, Δs, n)    
+            EquilibriaJacobian!(J, dx, Φ0, n)
+            EquilibriaSystem!(F, dx, xzero, x1, x0, Φ0, Δs, n)    
 
             j += 1
 
@@ -192,9 +197,9 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
 
         x[i, :] .= x1
 
-        Φ .= J \ v
+        Φ1 .= J \ v
 
-        normalize!(Φ)
+        normalize!(Φ1)
 
         for j in 1:n-1
             for k in 1:n-1
@@ -206,16 +211,16 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
 
         BiProduct!(2.0, Dx, LinearAlgebra.I, C, n-1)
 
-        lptest1 = Φ[n]
+        lptest1 = Φ1[n]
         bptest1 = det(J)
         htest1  = det(C)
 
         for j in 1:n-1
-            realev[i, j] = real(λ[j])
-            imagev[i, j] = imag(λ[j])
+            realeigen[i, j] = real(λ[j])
+            imageigen[i, j] = imag(λ[j])
         end
 
-        if all(realev[i, :] .<= 0.0)
+        if all(realeigen[i, :] .<= 0.0)
             stbl[i] = true
         else
             stbl[i] = false
@@ -243,10 +248,10 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
             idx = argmin(abs.(real.(Dxeigen.values)))
 
             for j in 1:n-1
-                ν[j]  = real(Dxeigen.vectors[j, idx])
+                vLP[j]  = real(Dxeigen.vectors[j, idx])
             end
 
-            LPFinding!(f!, y, params, ν,
+            LPFinding!(f!, y, params, vLP,
                        qLP, JLP, FLP,
                        dxeval, Jeval, xzero,
                        dy, yaux, ite, tol, n)
@@ -257,15 +262,13 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
                 end
             end
 
-            Dxeigen = eigen(Dx)
+            λLP = sum(vLP[k] * Jeval[k, l] * vLP[l] for k in 1:n-1, l in 1:n-1)
 
-            push!(lp, copy(y))
-            push!(lpeval, Dxeigen.values)
-            push!(lpevec, Dxeigen.vectors)
+            push!(lp, LimitPoint(copy(y), copy(vLP), copy(λLP)))
 
         end
 
-        if sign(htest0) != sign(htest1) && count(!iszero, imagev[i, :]) >= 2
+        if sign(htest0) != sign(htest1) && count(!iszero, imageigen[i, :]) >= 2
 
             for j in 1:n
                 y[j] = 0.5 * (x1[j] + x0[j])
@@ -290,23 +293,22 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
 
             idx = indices[closest_index]
 
-            HopfFinding!(f!, y, params, Dxeigen.values[idx], Dxeigen.vectors[:, idx], 
-                         w1, w2,
+            ωH = imag(Dxeigen.values[idx])
+
+            for j in 1:n-1
+                realvH[j] = real(Dxeigen.vectors[j, idx])
+                imagvH[j] = imag(Dxeigen.vectors[j, idx])
+            end
+
+            HopfFinding!(f!, y, params, realvH, imagvH, ωH,
+                         realwH, imagwH,
                          qH, JH, FH, 
                          dxeval, Jeval, xzero, 
                          dy, yaux, ite, tol, n)
 
-            for j in 1:n-1
-                for k in 1:n-1
-                    Dx[k,j] = Jeval[k, j]
-                end
-            end
+            λH = sum(realvH[k] * Jeval[k, l] * realvH[l] for k in 1:n-1, l in 1:n-1) / norm(realvH)
 
-            Dxeigen = eigen(Dx)
-
-            push!(h, copy(y))
-            push!(heval, Dxeigen.values)
-            push!(hevec, Dxeigen.vectors)
+            push!(hp, HopfPoint(copy(y), Complex.(realvH, imagvH), Complex(λH, ωH)))
 
         end
 
@@ -323,41 +325,38 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
 
             for j in 1:n-1
                 for k in 1:n-1
-                    Dx[k,j] = Jeval[k, j]
+                    DxT[k,j] = Jeval[j, k]
                 end
             end
 
-            Dxeigen = eigen(Dx)
+            Dxeigen = eigen(DxT)
+
             idx = argmin(abs.(real.(Dxeigen.values)))
+
             for j in 1:n-1
-                ν[j]  = real(Dxeigen.vectors[j, idx])
+                wBP[j]  = real(Dxeigen.vectors[j, idx])
             end
 
-            BPFinding!(f!, y, params, ν, 
+            BPFinding!(f!, y, params, wBP, 
                        qBP, JBP, FBP, 
                        dxeval, Jeval, xzero, 
-                       dy, yaux, δy, ite, tol, n)
+                       dy, yaux, ite, tol, n)
 
-            for j in 1:n-1
-                for k in 1:n-1
-                    Dx[k,j] = Jeval[k, j]
-                end
+            λBP = sum(wBP[k] * Jeval[l, k] * wBP[l] for k in 1:n-1, l in 1:n-1)
+
+            h1 = sqrt(sum((x1[j] - y[j])^2 for j in 1:n))
+            h0 = sqrt(sum((x0[j] - y[j])^2 for j in 1:n))
+
+            for j in 1:n
+                ΦBP[j] = (h0 * Φ0[j] + h1 * Φ1[j]) / Δs
             end
 
-            Jeval[n, :] .= Φ
-
-            ΦBP .= Jeval \ v
-
-            Dxeigen = eigen(Dx)
-
-            push!(bp, copy(y))
-            push!(bpdir, copy(ΦBP))
-            push!(bpeval, Dxeigen.values)
-            push!(bpevec, Dxeigen.vectors)
+            push!(bp, BranchPoint(copy(y), copy(wBP), copy(λBP), copy(ΦBP)))
 
         end
 
         x0 .= x1
+        Φ0 .= Φ1
         htest0 = htest1
         bptest0 = bptest1
         lptest0 = lptest1
@@ -366,15 +365,11 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, Φ_ini::Array{U, 1}, par
 
     end
 
-    return EquilibriumBranch(x, realev, imagev, 
-                             lp, lpeval, lpevec,
-                             bp, bpdir, bpeval, bpevec, 
-                             h, heval, hevec, 
-                             stbl, n, i-1)
+    return EquilibriumBranch(x, realeigen, imageigen, lp, hp, bp, stbl, i)
 
 end
 
-function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params, 
+function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params, pmin::U, pmax::U, 
                                 Δs::U, maxsteps::T, tol::U, ite::T) where {U<:Real, T<:Integer}
 
     ###
@@ -385,18 +380,11 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
     ###
 
     x = Array{U,2}(undef, maxsteps, n)
-    realev = Array{U,2}(undef, maxsteps, n-1)
-    imagev = Array{U,2}(undef, maxsteps, n-1)
-    lp = Array{U, 1}[]
-    lpeval= Array{Complex{U}, 1}[]
-    lpevec= Array{Complex{U}, 2}[]
-    bp = Array{U, 1}[]
-    bpdir  = Array{U, 1}[]
-    bpeval= Array{Complex{U}, 1}[]
-    bpevec= Array{Complex{U}, 2}[]
-    h = Array{U, 1}[]
-    heval= Array{Complex{U}, 1}[]
-    hevec= Array{Complex{U}, 2}[]
+    realeigen = Array{U,2}(undef, maxsteps, n-1)
+    imageigen = Array{U,2}(undef, maxsteps, n-1)
+    lp = LimitPoint{U}[]
+    bp = BranchPoint{U}[]
+    hp = HopfPoint{U}[]
     stbl = Array{Bool,1}(undef, maxsteps)
 
     ###
@@ -419,6 +407,7 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
     lptest0 = 0.0
     htest0  = 0.0
     bptest0 = 0.0
+    Φ0 = zero(x_ini)
 
     ###
 
@@ -426,6 +415,7 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
     lptest1 = 0.0
     htest1  = 0.0
     bptest1 = 0.0
+    Φ1 = zero(x_ini)
 
     ###
 
@@ -437,8 +427,8 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
     ###
     
     λ = Array{Complex{U}, 1}(undef, n-1)
-    ν = Array{U, 1}(undef, n-1)
     Dx = Array{U, 2}(undef, n-1, n-1)
+    DxT = Array{U, 2}(undef, n-1, n-1)
 
     ###
 
@@ -448,7 +438,7 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
 
     J = zeros(U, n, n)
     F = zeros(U, n)
-    Φ = zeros(U, n)
+    # Φ = zeros(U, n)
     v = zeros(U, n)
     v[n] = one(U)
 
@@ -457,6 +447,8 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
     JLP = zeros(U, 2*n-1, 2*n-1)
     FLP = zeros(U, 2*n-1)
     qLP = zeros(U, 2*n-1)
+    vLP = zeros(U, n-1)
+    λLP = zero(U)
 
     ###
 
@@ -464,16 +456,25 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
     FBP = zeros(U, 2*n)
     qBP = zeros(U, 2*n)
     ΦBP = zeros(U, n)
+    wBP = zeros(U, n-1)
+    λBP = zero(U)
+    h1 = zero(U)
+    h0 = zero(U)
 
     ###
 
     JH = zeros(U, 3*n-1, 3*n-1)
     FH = zeros(U, 3*n-1)
     qH = zeros(U, 3*n-1)
-    w1 = zeros(U, n-1)
-    w2 = zeros(U, n-1)
+    realvH = zeros(U, n-1)
+    imagvH = zeros(U, n-1)
+    realwH = zeros(U, n-1)
+    imagwH = zeros(U, n-1)
+    ωH = zero(U)
+    λH = zero(U)
 
     ###
+
     x[1, :] .= x0
 
     for i in 1:n
@@ -494,10 +495,10 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
         error("This point is a codimention 2. Exiting.")
     end
 
-    Φ .= NS
+    Φ0 .= NS
 
-    EquilibriaJacobian!(J, dx, Φ, n)
-    EquilibriaSystem!(F, dx, xzero, x1, x0, Φ, Δs, n)
+    EquilibriaJacobian!(J, dx, Φ0, n)
+    EquilibriaSystem!(F, dx, xzero, x1, x0, Φ0, Δs, n)
 
     for j in 1:n-1
         for i in 1:n-1
@@ -509,16 +510,16 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
 
     BiProduct!(2.0, Dx, LinearAlgebra.I, C, n-1)
 
-    lptest0 = Φ[n]
+    lptest0 = Φ0[n]
     bptest0 = det(J)
     htest0  = det(C)
 
     for j in 1:n-1
-        realev[1, j] = real(λ[j])
-        imagev[1, j] = imag(λ[j])
+        realeigen[1, j] = real(λ[j])
+        imageigen[1, j] = imag(λ[j])
     end
 
-    if all(realev[1, :] .<= 0.0)
+    if all(realeigen[1, :] .<= 0.0)
         stbl[1] = true
     else
         stbl[1] = false
@@ -528,16 +529,16 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
 
     i = 2
 
-    while i <= maxsteps
+    while i <= maxsteps && (pmin <= x1[n] <= pmax)
 
         for k in 1:n
-            x1[k] = x0[k] + Δs * Φ[k]
+            x1[k] = x0[k] + Δs * Φ0[k]
             xaux[k][0][1] = x1[k]
         end
 
         f!(dx, xaux, params, 0.0)
-        EquilibriaJacobian!(J, dx, Φ, n)
-        EquilibriaSystem!(F, dx, xzero, x1, x0, Φ, Δs, n)
+        EquilibriaJacobian!(J, dx, Φ0, n)
+        EquilibriaSystem!(F, dx, xzero, x1, x0, Φ0, Δs, n)
 
         j = 1
 
@@ -554,8 +555,8 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
             end
 
             f!(dx, xaux, params, 0.0)
-            EquilibriaJacobian!(J, dx, Φ, n)
-            EquilibriaSystem!(F, dx, xzero, x1, x0, Φ, Δs, n)    
+            EquilibriaJacobian!(J, dx, Φ0, n)
+            EquilibriaSystem!(F, dx, xzero, x1, x0, Φ0, Δs, n)    
 
             j += 1
 
@@ -568,9 +569,9 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
 
         x[i, :] .= x1
 
-        Φ .= J \ v
+        Φ1 .= J \ v
 
-        normalize!(Φ)
+        normalize!(Φ1)
 
         for j in 1:n-1
             for k in 1:n-1
@@ -582,16 +583,16 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
 
         BiProduct!(2.0, Dx, LinearAlgebra.I, C, n-1)
 
-        lptest1 = Φ[n]
+        lptest1 = Φ1[n]
         bptest1 = det(J)
         htest1  = det(C)
 
         for j in 1:n-1
-            realev[i, j] = real(λ[j])
-            imagev[i, j] = imag(λ[j])
+            realeigen[i, j] = real(λ[j])
+            imageigen[i, j] = imag(λ[j])
         end
 
-        if all(realev[i, :] .<= 0.0)
+        if all(realeigen[i, :] .<= 0.0)
             stbl[i] = true
         else
             stbl[i] = false
@@ -601,7 +602,6 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
 
             for j in 1:n
                 y[j] = 0.5 * (x1[j] + x0[j])
-                # yaux[j] = δy[j]
                 yaux[j][0][1] = y[j]
             end
 
@@ -620,10 +620,10 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
             idx = argmin(abs.(real.(Dxeigen.values)))
 
             for j in 1:n-1
-                ν[j]  = real(Dxeigen.vectors[j, idx])
+                vLP[j]  = real(Dxeigen.vectors[j, idx])
             end
 
-            LPFinding!(f!, y, params, ν,
+            LPFinding!(f!, y, params, vLP,
                        qLP, JLP, FLP,
                        dxeval, Jeval, xzero,
                        dy, yaux, ite, tol, n)
@@ -634,15 +634,13 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
                 end
             end
 
-            Dxeigen = eigen(Dx)
+            λLP = sum(vLP[k] * Jeval[k, l] * vLP[l] for k in 1:n-1, l in 1:n-1)
 
-            push!(lp, copy(y))
-            push!(lpeval, Dxeigen.values)
-            push!(lpevec, Dxeigen.vectors)
+            push!(lp, LimitPoint(copy(y), copy(vLP), copy(λLP)))
 
         end
 
-        if sign(htest0) != sign(htest1) && count(!iszero, imagev[i, :]) >= 2
+        if sign(htest0) != sign(htest1) && count(!iszero, imageigen[i, :]) >= 2
 
             for j in 1:n
                 y[j] = 0.5 * (x1[j] + x0[j])
@@ -667,23 +665,22 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
 
             idx = indices[closest_index]
 
-            HopfFinding!(f!, y, params, Dxeigen.values[idx], Dxeigen.vectors[:, idx], 
-                         w1, w2,
+            ωH = imag(Dxeigen.values[idx])
+
+            for j in 1:n-1
+                realvH[j] = real(Dxeigen.vectors[j, idx])
+                imagvH[j] = imag(Dxeigen.vectors[j, idx])
+            end
+
+            HopfFinding!(f!, y, params, realvH, imagvH, ωH,
+                         realwH, imagwH,
                          qH, JH, FH, 
                          dxeval, Jeval, xzero, 
                          dy, yaux, ite, tol, n)
 
-            for j in 1:n-1
-                for k in 1:n-1
-                    Dx[k,j] = Jeval[k, j]
-                end
-            end
+            λH = sum(realvH[k] * Jeval[k, l] * realvH[l] for k in 1:n-1, l in 1:n-1) / norm(realvH)
 
-            Dxeigen = eigen(Dx)
-
-            push!(h, copy(y))
-            push!(heval, Dxegien.values)
-            push!(hevec, Dxeigen.vectors)
+            push!(hp, HopfPoint(copy(y), Complex.(realvH, imagvH), Complex(λH, ωH)))
 
         end
 
@@ -700,41 +697,38 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
 
             for j in 1:n-1
                 for k in 1:n-1
-                    Dx[k,j] = Jeval[k, j]
+                    DxT[k,j] = Jeval[j, k]
                 end
             end
 
-            Dxeigen = eigen(Dx)
+            Dxeigen = eigen(DxT)
+
             idx = argmin(abs.(real.(Dxeigen.values)))
+
             for j in 1:n-1
-                ν[j]  = real(Dxeigen.vectors[j, idx])
+                wBP[j]  = real(Dxeigen.vectors[j, idx])
             end
 
-            BPFinding!(f!, y, params, ν, 
+            BPFinding!(f!, y, params, wBP, 
                        qBP, JBP, FBP, 
                        dxeval, Jeval, xzero, 
-                       dy, yaux, δy, ite, tol, n)
+                       dy, yaux, ite, tol, n)
 
-            for j in 1:n-1
-                for k in 1:n-1
-                    Dx[k,j] = Jeval[k, j]
-                end
+            λBP = sum(wBP[k] * Jeval[l, k] * wBP[l] for k in 1:n-1, l in 1:n-1)
+
+            h1 = sqrt(sum((x1[j] - y[j])^2 for j in 1:n))
+            h0 = sqrt(sum((x0[j] - y[j])^2 for j in 1:n))
+
+            for j in 1:n
+                ΦBP[j] = (h0 * Φ0[j] + h1 * Φ1[j]) / Δs
             end
 
-            Jeval[n, :] .= Φ
-
-            ΦBP .= Jeval \ v
-
-            Dxeigen = eigen(Dx)
-
-            push!(bp, copy(y))
-            push!(bpdir, copy(ΦBP))
-            push!(bpeval, Dxeigen.values)
-            push!(bpevec, Dxeigen.vectors)
+            push!(bp, BranchPoint(copy(y), copy(wBP), copy(λBP), copy(ΦBP)))
 
         end
 
         x0 .= x1
+        Φ0 .= Φ1
         htest0 = htest1
         bptest0 = bptest1
         lptest0 = lptest1
@@ -743,11 +737,6 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params,
 
     end
 
-    return EquilibriumBranch(x, realev, imagev, 
-                             lp, lpeval, lpevec,
-                             bp, bpdir, bpeval, bpevec, 
-                             h, heval, hevec, 
-                             stbl, n, i-1)
+    return EquilibriumBranch(x, realeigen, imageigen, lp, hp, bp, stbl, i)
 
 end
-
