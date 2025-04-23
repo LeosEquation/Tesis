@@ -1,50 +1,51 @@
 
 
-
-
 function BPContinuation(f!, x_ini::Vector{Float64}, params, Δs::Float64, maxsteps::Int64, tol::Float64, ite::Int64)
 
 #-
 
-n = length(x_ini) # Dimensión del sistema
+    n = length(x_ini) # Dimensión del sistema
 
-x = Array{Float64,2}(undef, maxsteps, 2*n - 1) # Rama de equilibrio
+    x = Array{Float64,2}(undef, maxsteps, n) # Rama de equilibrio
 
 ###
 
 # Inicializando TaylorN
 
-δx = set_variables("δx", numvars = n, order = 2)
+    variable_names = [string("δx", TaylorSeries.subscriptify(i)) for i in 1:n]
 
-###
+    TaylorSeries.set_variables(U, variable_names, order = 2)
 
-# Inicializando valores previos
+    δx = TaylorN.(1:n, order = 2)
 
-x0 = zeros(Float64, 2*n - 1)
-x0[1:n] .= copy(x_ini)
+    xaux = copy(δx)
+    dx = zero(δx)
 
-###
+    q0 = zeros(U, 2*n + 1)
+    q0[1:n] .= x_ini
+    q0[n+1:2*n-2] .= v_ini
 
-# Inicializando valores posteriores
+    q1 = zeros(U, 2*n + 1)
+    q1[1:n] .= x_ini
+    q1[n+1:2*n-2] .= v_ini
 
-x1 = copy(x0)
+    ###
 
-###
+    dx = Array{TaylorN{U},1}(undef, n)
 
-# Inicializando variables para bifurcaciones
+    ###
 
-dx = Array{TaylorN{Float64},1}(undef, n)
-Fx = Array{TaylorN{Float64},2}(undef, n-2, n-1)
+    # Inicializando variables para la continuación
 
-###
+    J = zeros(U, 2*n + 1, 2*n - 2)
+    F = zeros(U, 2*n - 2)
+    Φ = zeros(U, 2*n - 2)
+    v = zeros(U, 2*n - 2)
+    v[2*n - 2] = one(U)
 
-# Inicializando variables para la continuación
-
-J = zeros(Float64, 2*n - 1, 2*n - 1)
-F = zeros(Float64, 2*n - 1)
-Φ = zeros(Float64, 2*n - 1)
-v = zeros(Float64, 2*n - 1)
-v[2*n - 1] = 1.0
+    Jeval = zeros(U, n, n)
+    dxeval = zeros(U, n)
+    xzero = zeros(U, n) 
 
 ###
 

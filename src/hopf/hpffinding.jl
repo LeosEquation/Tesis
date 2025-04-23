@@ -1,26 +1,18 @@
-function HopfFinding!(f!, x::Array{U, 1}, params, λ::Complex{U}, v::Array{Complex{U}, 1},
+function HopfFinding!(f!, x::Array{U, 1}, params,
+                      realv::Array{U, 1}, imagv::Array{U, 1}, ω::U,
                       w1::Array{U, 1}, w2::Array{U, 1}, 
                       q::Array{U, 1}, J::Array{U, 2}, F::Array{U, 1}, 
                       dxeval::Array{U, 1}, Jeval::Array{U, 2}, xzero::Array{U, 1},
                       dy::Array{TaylorN{U}, 1}, yaux::Array{TaylorN{U},1}, 
                       ite::T, tol::U, n::T) where {U<:Real, T<:Integer}
 
-    # @show λ
-    # @show v
-
     q[1:n] .= x
+    q[n+1:2*n-1] .= realv
+    q[2*n:3*n-2] .= imagv
+    q[3*n-1] = ω
 
-    for i in 1:n-1
-
-        q[n+i] = real(v[i])
-        w1[i] = real(v[i])
-
-        q[2*n-1+i] = imag(v[i])
-        w2[i] = imag(v[i])
-
-    end
-
-    q[3*n-1] = imag(λ)
+    w1 .= realv
+    w2 .= imagv
 
     for i in 1:n
         yaux[i][0][1] = q[i]
@@ -37,8 +29,6 @@ function HopfFinding!(f!, x::Array{U, 1}, params, λ::Complex{U}, v::Array{Compl
     k = 1
 
     while k <= ite && norm(F) > tol
-
-        # println(" ite = $k : ||F|| = $(norm(F))")
 
         if det(J) == 0.0
             break
@@ -66,8 +56,11 @@ function HopfFinding!(f!, x::Array{U, 1}, params, λ::Complex{U}, v::Array{Compl
         @warn("The hopf point tolerance was exceded.")
     end 
 
-    for i in 1:n
-        x[i] = q[i]
+    for i in 1:n-1
+        realv[i] = q[n+i]
+        imagv[i] = q[2*n-1+i]
     end
+
+    ω = q[3*n-1]
 
 end

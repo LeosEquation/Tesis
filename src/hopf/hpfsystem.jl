@@ -16,9 +16,9 @@ function HopfJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, q::Array{U, 1},
 
             J[i, j] = Jeval[i, j]
 
-            J[i1+i, j] = sum(evaluate(differentiate(differentiate(dx[i], k), j)) * q[n+k] for k in 1:n-1)
+            J[i1+i, j] = sum(differentiate(ntuple(l -> count(==(l), (k, j)), n), dx[i]) * q[n+k] for k in 1:n-1)
 
-            J[i2+i, j] = sum(evaluate(differentiate(differentiate(dx[i], k), j)) * q[j2+k] for k in 1:n-1)
+            J[i2+i, j] = sum(differentiate(ntuple(l -> count(==(l), (k, j)), n), dx[i]) * q[j2+k] for k in 1:n-1)
 
             if j < n
 
