@@ -1,3 +1,47 @@
+function HopfJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, dx::Array{TaylorN{U}, 1}, 
+                       q::Array{U, 1}, w::Array{U, 1}, Φ::Array{U, 1}, n::T) where {U<:Real, T<:Integer}
+
+    for i in 1:n-2
+        for j in 1:n
+            J[i, j] = Jeval[i, j]
+            J[n-2+i, j] = sum((differentiate(ntuple(ii -> count(==(ii), (j, k)), n), dx[i]) * Jeval[k, l] +
+                               differentiate(ntuple(ii -> count(==(ii), (j, l)), n), dx[k]) * Jeval[i, k]) * 
+                               q[n+l] for k in 1:n-2, l in 1:n-2)
+            if j < n - 1
+                J[n-2+i, n+j] = sum(Jeval[i, k] * Jeval[k, j] for k in 1:n-2)
+            end
+        end
+
+        J[n-2+i, n+i] += q[2*n-1]
+
+        J[n-2+i, 2*n-1] = q[n+i]
+
+        J[2*n-3, n+i] = 2.0 * q[n+i]
+
+        J[2*n-2, n+i] = w[i]
+
+    end
+
+    J[2*n-1, :] .= Φ
+
+end
+
+function HopfSystem!(F::Array{U, 1}, dxeval::Array{U, 1}, Jeval::Array{U, 2},
+                     q::Array{U, 1}, q0::Array{U, 1}, w::Array{U, 1}, Φ::Array{U, 1}, Δs::U, n::T) where {U<:Real, T<:Integer}
+
+    for i in 1:n-2
+        F[i] = dxeval[i]
+        F[n-2+i] = sum(Jeval[i, k] * Jeval[k, l] * q[n+l] for k in 1:n-2, l in 1:n-2) + q[2*n-1] * q[n+i]
+    end
+
+    F[2*n-3] = sum(q[n+i] ^ 2 for i in 1:n-2) - 1.0
+    F[2*n-2] = sum(w[i] * q[n+i] for i in 1:n-2)
+    F[2*n-1] = sum((q[i] - q0[i]) * Φ[i] for i in 1:2*n-1) - Δs
+
+end
+
+
+
 function HopfJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, q::Array{U, 1}, 
                        dx::Array{TaylorN{U}, 1}, w1::Array{U, 1}, w2::Array{U, 1}, n::T) where {U<:Real, T<:Integer}
     
