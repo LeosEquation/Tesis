@@ -28,6 +28,8 @@ function HopfFinding!(f!, x::Array{U, 1}, params,
  
     k = 1
 
+    # println(" ite = $k, ||F|| = $(norm(F))")
+
     while k <= ite && norm(F) > tol
 
         if det(J) == 0.0
@@ -50,11 +52,17 @@ function HopfFinding!(f!, x::Array{U, 1}, params,
 
         k += 1
 
+        # println(" ite = $k, ||F|| = $(norm(F))")
+
     end
 
     if norm(F) > tol
         @warn("The hopf point tolerance was exceded.")
     end 
+
+    for i in 1:n
+        x[i] = q[i]
+    end
 
     for i in 1:n-1
         realv[i] = q[n+i]

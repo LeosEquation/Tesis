@@ -262,6 +262,10 @@ function EquilibriaContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::U, pma
                 end
             end
 
+            Dxeigen = eigen(Dx)
+
+            idx = argmin(abs.(real.(Dxeigen.values)))
+
             λLP = sum(vLP[k] * Jeval[k, l] * vLP[l] for k in 1:n-1, l in 1:n-1)
 
             push!(lp, LimitPoint(copy(y), copy(vLP), copy(λLP)))
@@ -306,9 +310,24 @@ function EquilibriaContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::U, pma
                          dxeval, Jeval, xzero, 
                          dy, yaux, ite, tol, n)
 
-            λH = sum(realvH[k] * Jeval[k, l] * realvH[l] for k in 1:n-1, l in 1:n-1) / norm(realvH)
+            # λH = (sum(realvH[k] * Jeval[k, l] * realvH[l] for k in 1:n-1, l in 1:n-1) 
+            #       + ωH * dot(realvH, imagvH)) / dot(realvH, realvH)
 
-            push!(hp, HopfPoint(copy(y), Complex.(realvH, imagvH), Complex(λH, ωH)))
+            for j in 1:n-1
+                for k in 1:n-1
+                    Dx[k,j] = Jeval[k, j]
+                end
+            end
+
+            Dxeigen = eigen(Dx)
+
+            indices = findall(x -> imag(x) != 0, Dxeigen.values)
+
+            closest_index = argmin(abs.(real.(Dxeigen.values[indices])))
+
+            idx = indices[closest_index]
+        
+            push!(hp, HopfPoint(copy(y), Dxeigen.vectors[:, idx], Dxeigen.values[idx]))
 
         end
 
@@ -678,9 +697,24 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params, pmin::U, pmax::U
                          dxeval, Jeval, xzero, 
                          dy, yaux, ite, tol, n)
 
-            λH = sum(realvH[k] * Jeval[k, l] * realvH[l] for k in 1:n-1, l in 1:n-1) / norm(realvH)
+            # λH = (sum(realvH[k] * Jeval[k, l] * realvH[l] for k in 1:n-1, l in 1:n-1) 
+            #       + ωH * dot(realvH, imagvH)) / dot(realvH, realvH)
 
-            push!(hp, HopfPoint(copy(y), Complex.(realvH, imagvH), Complex(λH, ωH)))
+            for j in 1:n-1
+                for k in 1:n-1
+                    Dx[k,j] = Jeval[k, j]
+                end
+            end
+
+            Dxeigen = eigen(Dx)
+
+            indices = findall(x -> imag(x) != 0, Dxeigen.values)
+
+            closest_index = argmin(abs.(real.(Dxeigen.values[indices])))
+
+            idx = indices[closest_index]
+        
+            push!(hp, HopfPoint(copy(y), Dxeigen.vectors[:, idx], Dxeigen.values[idx]))
 
         end
 
