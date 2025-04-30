@@ -2,6 +2,7 @@ using TaylorIntegration, TaylorSeries, LinearAlgebra
 
 # Inicializando objetos
 include("./objects/equilibria.jl")
+include("./inicialization/taylornini.jl")
 
 # Inicializando operaciones extra
 include("./operations/adjugate.jl")
@@ -11,6 +12,7 @@ include("./operations/biproduct.jl")
 include("./equilibria/eqfinding.jl")
 include("./equilibria/eqsystem.jl")
 include("./equilibria/eqcontinuation.jl")
+include("./equilibria/branchswitching.jl")
 
 # Limit Points
 include("./limitpoint/lpfinding.jl")
