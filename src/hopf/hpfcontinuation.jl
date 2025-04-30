@@ -4,15 +4,17 @@ function HPContinuation(f!, hp_ini::HopfPoint{U}, params, pmin::Array{U, 1}, pma
 #-
 
     n = length(hp_ini.x) # Dimensión del sistema
+    ordtup = [ntuple(k -> count(==(k), (i, j)), TaylorSeries.get_numvars()) for i in 1:n, j in 1:n]
 
     x = Array{U,2}(undef, maxsteps, n)
     ω = Array{U,1}(undef, maxsteps)
+
 
 ###
 
 # Inicializando TaylorN
 
-    set_variables("δx", numvars = n, order = 2)
+    # set_variables("δx", numvars = n, order = 2)
 
     δx = TaylorN.(1:n, order = 2)
 
@@ -75,7 +77,7 @@ function HPContinuation(f!, hp_ini::HopfPoint{U}, params, pmin::Array{U, 1}, pma
         A[n-1, i] = q0[n+i]
     end
 
-    _, S, Vt = svd(A)
+    _, _, Vt = svd(A)
     w .= Vt[:, end]    # Último vector columna
     normalize!(w)
 
@@ -83,7 +85,7 @@ function HPContinuation(f!, hp_ini::HopfPoint{U}, params, pmin::Array{U, 1}, pma
 
     # w .= nullspace(A)
 
-    HopfJacobian!(J, Jeval, dx, q0, w, Φ, n)
+    HopfJacobian!(J, Jeval, dx, q0, w, Φ, ordtup, n)
     # HopfSystem!(F, dxeval, Jeval, q0, q0, Φ, w, Δs, n)
 
     # @show F
@@ -129,7 +131,7 @@ function HPContinuation(f!, hp_ini::HopfPoint{U}, params, pmin::Array{U, 1}, pma
         TaylorSeries.evaluate!(dx, xzero, dxeval)
         TaylorSeries.jacobian!(Jeval, dx)
     
-        HopfJacobian!(J, Jeval, dx, q1, w, Φ, n)
+        HopfJacobian!(J, Jeval, dx, q1, w, Φ, ordtup, n)
         HopfSystem!(F, dxeval, Jeval, q1, q0, w, Φ, Δs, n)
 
         j = 1
@@ -157,7 +159,7 @@ function HPContinuation(f!, hp_ini::HopfPoint{U}, params, pmin::Array{U, 1}, pma
             TaylorSeries.evaluate!(dx, xzero, dxeval)
             TaylorSeries.jacobian!(Jeval, dx)
         
-            HopfJacobian!(J, Jeval, dx, q1, w, Φ, n)
+            HopfJacobian!(J, Jeval, dx, q1, w, Φ, ordtup, n)
             HopfSystem!(F, dxeval, Jeval, q1, q0, w, Φ, Δs, n)
 
             j += 1
@@ -192,7 +194,7 @@ function HPContinuation(f!, hp_ini::HopfPoint{U}, params, pmin::Array{U, 1}, pma
             A[n-1, j] = q1[n+j]
         end
 
-        _, S, Vt = svd(A)
+        _, _, Vt = svd(A)
         w .= Vt[:, end]    # Último vector columna
         normalize!(w)
         # @show S[end]

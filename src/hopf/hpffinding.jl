@@ -2,9 +2,9 @@ function HopfFinding!(f!, x::Array{U, 1}, params,
                       realv::Array{U, 1}, imagv::Array{U, 1}, ω::U,
                       w1::Array{U, 1}, w2::Array{U, 1}, 
                       q::Array{U, 1}, J::Array{U, 2}, F::Array{U, 1}, 
-                      dxeval::Array{U, 1}, Jeval::Array{U, 2}, xzero::Array{U, 1},
+                      dxeval::Array{U, 1}, Jeval::Array{U, 2},
                       dy::Array{TaylorN{U}, 1}, yaux::Array{TaylorN{U},1}, 
-                      ite::T, tol::U, n::T) where {U<:Real, T<:Integer}
+                      ite::T, tol::U, ordtup::Array{NTuple{N, T}, 2}, n::T) where {U<:Real, T<:Integer, N}
 
     q[1:n] .= x
     q[n+1:2*n-1] .= realv
@@ -20,15 +20,17 @@ function HopfFinding!(f!, x::Array{U, 1}, params,
 
     f!(dy, yaux, params, zero(U))
 
-    evaluate!(dy, xzero, dxeval)
-    TaylorSeries.jacobian!(Jeval, dy)
+    for i in 1:n-1
+        for j in 1:n
+                Jeval[i,j] = dy[i][1][j]
+        end
+        dxeval[i] = dy[i][0][1]
+    end
 
     HopfSystem!(F, dxeval, q, Jeval, w1, w2, n)
-    HopfJacobian!(J, Jeval, q, dy, w1, w2, n)
+    HopfJacobian!(J, Jeval, q, dy, w1, w2, ordtup, n)
  
     k = 1
-
-    # println(" ite = $k, ||F|| = $(norm(F))")
 
     while k <= ite && norm(F) > tol
 
@@ -44,15 +46,17 @@ function HopfFinding!(f!, x::Array{U, 1}, params,
 
         f!(dy, yaux, params, zero(U))
 
-        evaluate!(dy, xzero, dxeval)
-        TaylorSeries.jacobian!(Jeval, dy)
+        for i in 1:n-1
+            for j in 1:n
+                    Jeval[i,j] = dy[i][1][j]
+            end
+            dxeval[i] = dy[i][0][1]
+        end
 
         HopfSystem!(F, dxeval, q, Jeval, w1, w2, n)
-        HopfJacobian!(J, Jeval, q, dy, w1, w2, n)
+        HopfJacobian!(J, Jeval, q, dy, w1, w2, ordtup, n)
 
         k += 1
-
-        # println(" ite = $k, ||F|| = $(norm(F))")
 
     end
 

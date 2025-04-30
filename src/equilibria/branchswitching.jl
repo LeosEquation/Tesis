@@ -1,11 +1,11 @@
 
-function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params, pmin::U, pmax::U, 
+function EquilibriaContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::U, pmax::U, 
                                 Δs::U, maxsteps::T, tol::U, ite::T) where {U<:Real, T<:Integer}
 
     ###
-    n = length(x_ini)
-    ordtup = [ntuple(k -> count(==(k), (i, j)), TaylorSeries.get_numvars()) for i in 1:n, j in 1:n]
+    n = length(bp_ini.x)
 
+    ordtup = [ntuple(k -> count(==(k), (i, j)), TaylorSeries.get_numvars()) for i in 1:n, j in 1:n]
 
     ###
     x = Array{U,2}(undef, maxsteps, n)
@@ -24,18 +24,18 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params, pmin::U, pmax::U
     dy = zero(δy)
 
     ###
-    x0 = copy(x_ini)
+    x0 = copy(bp_ini.x)
     lptest0 = 0.0
     htest0  = 0.0
     bptest0 = 0.0
-    Φ0 = zero(x_ini)
+    Φ0 = zero(bp_ini.dir)
 
     ###
-    x1 = copy(x_ini)
+    x1 = copy(bp_ini.x)
     lptest1 = 0.0
     htest1  = 0.0
     bptest1 = 0.0
-    Φ1 = zero(x_ini)
+    Φ1 = zero(bp_ini.dir)
 
     ###
     m = ((n - 1) * (n - 2)) ÷ 2
@@ -47,7 +47,7 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params, pmin::U, pmax::U
     λ_ = Array{Complex{U}, 1}(undef, n-1)
 
     ###
-    y = copy(x_ini)
+    y = copy(bp_ini.x)
 
     ###
     J = zeros(U, n, n)
@@ -97,15 +97,13 @@ function EquilibriaContinuation(f!, x_ini::Array{U, 1}, params, pmin::U, pmax::U
 
     NS = nullspace(Jeval)
 
-    if size(NS, 2) == 0
-        error("Initial point does not have a valid branch direction. Cannot continue.")
+    if size(NS, 2) != 2
+        error("Initial point does not a valid branch point. Cannot continue.")
     end
 
-    if size(NS, 2) > 1
-        error("Initial point is a codimension-2 bifurcation. Cannot continue.")
-    end
+    a, b = NS \ bp_ini.dir
 
-    Φ0 .= NS
+    Φ0 .= - b * NS[:, 1] + a * NS[:, 2]
 
     EquilibriaJacobian!(J, dx, Φ0, n)
     EquilibriaSystem!(F, dx, x1, x0, Φ0, Δs, n)

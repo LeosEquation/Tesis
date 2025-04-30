@@ -1,15 +1,17 @@
 function BPJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, q::Array{U, 1}, 
-                     dx::Array{TaylorN{U}, 1}, Φ::Array{U, 1}, n::T) where {U<:Real, T<:Integer}
+                     dx::Array{TaylorN{U}, 1}, Φ::Array{U, 1}, ordtup::Array{NTuple{N, T}, 2}, n::T) where {U<:Real, T<:Integer, N}
 
     for j in 1:n 
         for i in 1:n-2
             J[i, j] = Jeval[i, j]
-            J[n-2+i, j] = sum(differentiate(ntuple(l -> count(==(l), (i, j)), n), dx[k]) * q[n+k] for k in 1:n-2)
+            # J[n-2+i, j] = sum(differentiate(ntuple(l -> count(==(l), (i, j)), TaylorSeries.get_numvars()), dx[k]) * q[n+k] for k in 1:n-2)
+            J[n-2+i, j] = sum(differentiate(ordtup[i, j], dx[k]) * q[n+k] for k in 1:n-2)
             if j < n - 1
                 J[n-2+i, n+j] = Jeval[j, i]
             end
         end
-        J[2*n-3, j] = sum(differentiate(ntuple(l -> count(==(l), (n-1, j)), n), dx[k]) * q[n+k] for k in 1:n-2)
+        # J[2*n-3, j] = sum(differentiate(ntuple(l -> count(==(l), (n-1, j)), TaylorSeries.get_numvars()), dx[k]) * q[n+k] for k in 1:n-2)
+        J[2*n-3, j] = sum(differentiate(ordtup[n-1, j], dx[k]) * q[n+k] for k in 1:n-2)
         if j < n - 1
             J[2*n-3, n+j] = Jeval[j, n-1]
         end
@@ -42,17 +44,19 @@ end
 
 
 function BPJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, q::Array{U, 1}, 
-                     dx::Array{TaylorN{U}, 1}, n::T) where {U<:Real, T<:Integer}
+                     dx::Array{TaylorN{U}, 1}, ordtup::Array{NTuple{N, T}, 2}, n::T) where {U<:Real, T<:Integer, N}
 
     for j in 1:n 
         for i in 1:n-1
             J[i, j] = Jeval[i, j]
-            J[n-1+i, j] = sum(differentiate(ntuple(l -> count(==(l), (i, j)), n), dx[k]) * q[n+k] for k in 1:n-1)
+            # J[n-1+i, j] = sum(differentiate(ntuple(l -> count(==(l), (i, j)), TaylorSeries.get_numvars()), dx[k]) * q[n+k] for k in 1:n-1)
+            J[n-1+i, j] = sum(differentiate(ordtup[i, j], dx[k]) * q[n+k] for k in 1:n-1)
             if j < n
                 J[n+i-1, n+j] = Jeval[j, i]
             end
         end
-        J[2*n-1, j] = sum(differentiate(ntuple(l -> count(==(l), (n, j)), n), dx[k]) * q[n+k] for k in 1:n-1)
+        J[2*n-1, j] = sum(differentiate(ordtup[n, j], dx[k]) * q[n+k] for k in 1:n-1)
+        # J[2*n-1, j] = sum(differentiate(ntuple(l -> count(==(l), (n, j)), TaylorSeries.get_numvars()), dx[k]) * q[n+k] for k in 1:n-1)
         if j < n
             J[2*n-1, n+j] = Jeval[j, n]
         end
