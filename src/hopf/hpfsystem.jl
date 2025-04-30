@@ -1,11 +1,15 @@
 function HopfJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, dx::Array{TaylorN{U}, 1}, 
-                       q::Array{U, 1}, w::Array{U, 1}, Φ::Array{U, 1}, n::T) where {U<:Real, T<:Integer}
+                       q::Array{U, 1}, w::Array{U, 1}, Φ::Array{U, 1},
+                       ordtup::Array{NTuple{N, T}, 2}, n::T) where {U<:Real, T<:Integer, N}
 
     for i in 1:n-2
         for j in 1:n
             J[i, j] = Jeval[i, j]
-            J[n-2+i, j] = sum((differentiate(ntuple(ii -> count(==(ii), (j, k)), n), dx[i]) * Jeval[k, l] +
-                               differentiate(ntuple(ii -> count(==(ii), (j, l)), n), dx[k]) * Jeval[i, k]) * 
+            # J[n-2+i, j] = sum((differentiate(ntuple(ii -> count(==(ii), (j, k)), TaylorSeries.get_numvars()), dx[i]) * Jeval[k, l] +
+            #                    differentiate(ntuple(ii -> count(==(ii), (j, l)), TaylorSeries.get_numvars()), dx[k]) * Jeval[i, k]) * 
+            #                    q[n+l] for k in 1:n-2, l in 1:n-2)
+            J[n-2+i, j] = sum((differentiate(ordtup[j, k], dx[i]) * Jeval[k, l] +
+                               differentiate(ordtup[j, l], dx[k]) * Jeval[i, k]) * 
                                q[n+l] for k in 1:n-2, l in 1:n-2)
             if j < n - 1
                 J[n-2+i, n+j] = sum(Jeval[i, k] * Jeval[k, j] for k in 1:n-2)
@@ -43,7 +47,8 @@ end
 
 
 function HopfJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, q::Array{U, 1}, 
-                       dx::Array{TaylorN{U}, 1}, w1::Array{U, 1}, w2::Array{U, 1}, n::T) where {U<:Real, T<:Integer}
+                       dx::Array{TaylorN{U}, 1}, w1::Array{U, 1}, w2::Array{U, 1},
+                       ordtup::Array{NTuple{N, T}, 2}, n::T) where {U<:Real, T<:Integer, N}
     
     i1 = n-1
     # j1 = n 
@@ -60,9 +65,13 @@ function HopfJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, q::Array{U, 1},
 
             J[i, j] = Jeval[i, j]
 
-            J[i1+i, j] = sum(differentiate(ntuple(l -> count(==(l), (k, j)), n), dx[i]) * q[n+k] for k in 1:n-1)
+            # J[i1+i, j] = sum(differentiate(ntuple(l -> count(==(l), (k, j)), TaylorSeries.get_numvars()), dx[i]) * q[n+k] for k in 1:n-1)
 
-            J[i2+i, j] = sum(differentiate(ntuple(l -> count(==(l), (k, j)), n), dx[i]) * q[j2+k] for k in 1:n-1)
+            # J[i2+i, j] = sum(differentiate(ntuple(l -> count(==(l), (k, j)), TaylorSeries.get_numvars()), dx[i]) * q[j2+k] for k in 1:n-1)
+
+            J[i1+i, j] = sum(differentiate(ordtup[j, k], dx[i]) * q[n+k] for k in 1:n-1)
+
+            J[i2+i, j] = sum(differentiate(ordtup[j, k], dx[i]) * q[j2+k] for k in 1:n-1)
 
             if j < n
 

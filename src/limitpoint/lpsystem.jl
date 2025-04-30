@@ -1,6 +1,7 @@
 
 function LPJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, dx::Array{TaylorN{U}, 1},
-                     q::Array{U, 1}, Φ::Array{U, 1}, n::T) where {U<:Real, T<:Integer}
+                     q::Array{U, 1}, Φ::Array{U, 1}, 
+                     ordtup::Array{NTuple{N, T}, 2}, n::T) where {U<:Real, T<:Integer, N}
 
     i1 = n - 2
     i2 = 2*n - 3
@@ -9,8 +10,8 @@ function LPJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, dx::Array{TaylorN{U}, 1
 
         for j in 1:n
             J[i, j] = Jeval[i, j]
-            # J[i1+i, j] = sum(evaluate(differentiate(differentiate(dx[i], k), j)) * q[n+k] for k in 1:n-2)
-            J[i1+i, j] = sum(differentiate(ntuple(l -> count(==(l), (k, j)), n), dx[i]) * q[n+k] for k in 1:n-2)
+            # J[i1+i, j] = sum(differentiate(ntuple(l -> count(==(l), (k, j)), TaylorSeries.get_numvars()), dx[i]) * q[n+k] for k in 1:n-2)
+            J[i1+i, j] = sum(differentiate(ordtup[j, k], dx[i]) * q[n+k] for k in 1:n-2)
             if j < (n - 1) 
                 J[i1+i, n+j] = Jeval[i, j]
             end
@@ -37,7 +38,7 @@ function LPSystem!(F::Array{U, 1}, Jeval::Array{U, 2}, dxeval::Array{U, 1},
 end
 
 function LPJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, dx::Array{TaylorN{U}, 1},
-                     q::Array{U, 1}, n::T) where {U<:Real, T<:Integer}
+                     q::Array{U, 1}, ordtup::Array{NTuple{N, T}, 2}, n::T) where {U<:Real, T<:Integer, N}
 
     i1 = n-1
     i2 = 2*n - 1
@@ -45,8 +46,8 @@ function LPJacobian!(J::Array{U, 2}, Jeval::Array{U, 2}, dx::Array{TaylorN{U}, 1
     for i in 1:n-1
         for j in 1:n
             J[i, j] = Jeval[i, j]
-            # J[i1+i, j] = sum(evaluate(differentiate(differentiate(dx[i], k), j)) * q[n+k] for k in 1:n-1)
-            J[i1+i, j] = sum(differentiate(ntuple(l -> count(==(l), (k, j)), n), dx[i]) * q[n+k] for k in 1:n-1)
+            # J[i1+i, j] = sum(differentiate(ntuple(l -> count(==(l), (k, j)), TaylorSeries.get_numvars()), dx[i]) * q[n+k] for k in 1:n-1)
+            J[i1+i, j] = sum(differentiate(ordtup[j, k], dx[i]) * q[n+k] for k in 1:n-1)
             if j < n
                 J[i1+i, n+j] = Jeval[i, j]
             end

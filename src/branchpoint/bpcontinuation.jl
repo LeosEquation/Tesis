@@ -6,12 +6,13 @@ function BPContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::Array{U, 1}, p
 #-
 
     n = length(bp_ini.x) # Dimensión del sistema
+    ordtup = [ntuple(k -> count(==(k), (i, j)), TaylorSeries.get_numvars()) for i in 1:n, j in 1:n]
 
     x = Array{Float64,2}(undef, maxsteps, n) # Rama de equilibrio
 
-    variable_names = [string("δx", TaylorSeries.subscriptify(i)) for i in 1:n]
+    # variable_names = [string("δx", TaylorSeries.subscriptify(i)) for i in 1:n]
 
-    TaylorSeries.set_variables(U, variable_names, order = 2)
+    # TaylorSeries.set_variables(U, variable_names, order = 2)
 
     δx = TaylorN.(1:n, order = 2)
 
@@ -53,7 +54,7 @@ function BPContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::Array{U, 1}, p
     TaylorSeries.jacobian!(Jeval, dx)
     TaylorSeries.evaluate!(dx, xzero, dxeval)
 
-    BPJacobian!(J, Jeval, q0, dx, Φ, n)
+    BPJacobian!(J, Jeval, q0, dx, Φ, ordtup, n)
     BPSystem!(F, dxeval, Jeval, q1, q0, Φ, Δs, n)
 
     # @show J
@@ -90,7 +91,7 @@ function BPContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::Array{U, 1}, p
         TaylorSeries.jacobian!(Jeval, dx)
         TaylorSeries.evaluate!(dx, xzero, dxeval)
 
-        BPJacobian!(J, Jeval, q1, dx, Φ, n)
+        BPJacobian!(J, Jeval, q1, dx, Φ, ordtup, n)
         BPSystem!(F, dxeval, Jeval, q1, q0, Φ, Δs, n)
 
         j = 1
@@ -112,7 +113,7 @@ function BPContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::Array{U, 1}, p
             TaylorSeries.jacobian!(Jeval, dx)
             TaylorSeries.evaluate!(dx, xzero, dxeval)
 
-            BPJacobian!(J, Jeval, q1, dx, Φ, n)
+            BPJacobian!(J, Jeval, q1, dx, Φ, ordtup, n)
             BPSystem!(F, dxeval, Jeval, q1, q0, Φ, Δs, n)
 
             j += 1

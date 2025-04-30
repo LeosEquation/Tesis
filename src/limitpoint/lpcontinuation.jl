@@ -7,14 +7,16 @@ function LPContinuation(f!, lp_ini::LimitPoint{U},
     #-
 
     n = length(lp_ini.x)
+    ordtup = [ntuple(k -> count(==(k), (i, j)), TaylorSeries.get_numvars()) for i in 1:n, j in 1:n]
+
     x = Array{U, 2}(undef, maxsteps, n)
 
 
     ###
 
-    variable_names = [string("δx", TaylorSeries.subscriptify(i)) for i in 1:n]
+    # variable_names = [string("δx", TaylorSeries.subscriptify(i)) for i in 1:n]
 
-    TaylorSeries.set_variables(U, variable_names, order = 2)
+    # TaylorSeries.set_variables(U, variable_names, order = 2)
 
     δx = TaylorN.(1:n, order = 2)
 
@@ -69,7 +71,7 @@ function LPContinuation(f!, lp_ini::LimitPoint{U},
 
     TaylorSeries.jacobian!(Jeval, dx)
     
-    LPJacobian!(J, Jeval, dx, q0, Φ, n)
+    LPJacobian!(J, Jeval, dx, q0, Φ, ordtup, n)
 
     NS = nullspace(J)
 
@@ -104,7 +106,7 @@ function LPContinuation(f!, lp_ini::LimitPoint{U},
         TaylorSeries.evaluate!(dx, xzero, dxeval)
         TaylorSeries.jacobian!(Jeval, dx)
 
-        LPJacobian!(J, Jeval, dx, q1, Φ, n)
+        LPJacobian!(J, Jeval, dx, q1, Φ, ordtup, n)
         LPSystem!(F, Jeval, dxeval, q1, q0, Φ, Δs, n)
 
         j = 1
@@ -126,7 +128,7 @@ function LPContinuation(f!, lp_ini::LimitPoint{U},
             TaylorSeries.evaluate!(dx, xzero, dxeval)
             TaylorSeries.jacobian!(Jeval, dx)
     
-            LPJacobian!(J, Jeval, dx, q1, Φ, n)
+            LPJacobian!(J, Jeval, dx, q1, Φ, ordtup, n)
             LPSystem!(F, Jeval, dxeval, q1, q0, Φ, Δs, n)
 
             j += 1
