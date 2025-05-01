@@ -33,6 +33,7 @@ include("./branchpoint/bpcontinuation.jl")
 include("./orbits/orbitfinding.jl")
 include("./orbits/orbitsystem.jl")
 include("./orbits/orbitcontinuation.jl")
+include("./orbits/multishooting.jl")
 
 # Limit Point Cycle
 include("./limitpointcycle/lpcfinding.jl")
