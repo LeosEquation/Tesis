@@ -1,7 +1,7 @@
 
 
-function LPContinuation(f!, lp_ini::LimitPoint{U}, 
-                        params, pmin::Array{U, 1}, pmax::Array{U, 1}, 
+function LPContinuation(f!, g, lp_ini::LimitPoint{U}, 
+                        params,
                         Δs::U, maxsteps::T, tol::U, ite::T) where {U<:Real, T<:Integer}
 
     #-
@@ -23,25 +23,26 @@ function LPContinuation(f!, lp_ini::LimitPoint{U},
     xaux = copy(δx)
     dx = zero(δx)
 
+    Jeval = zeros(U, n - 2, n)
+    dxeval = zeros(U, n - 2)
+
     ###
 
     # Inicializando valores previos
 
     q0 = zeros(U, 2*n - 2)
     q0[1:n] .= lp_ini.x
-    q0[n+1:2*n-2] .= lp_ini.vector
+    q0[n+1:2*n-2] .= lp_ini.nullvec
 
     ###
 
     # Inicializando valores posteriores
 
-    q1 = zeros(U, 2*n - 2)
-    q1[1:n] .= lp_ini.x
-    q1[n+1:2*n-2] .= lp_ini.vector
+    q1 = copy(q0)
 
     ###
 
-    dx = Array{TaylorN{U},1}(undef, n)
+    # dx = Array{TaylorN{U},1}(undef, n)
 
     ###
 
@@ -53,9 +54,7 @@ function LPContinuation(f!, lp_ini::LimitPoint{U},
     v = zeros(U, 2*n - 2)
     v[2*n - 2] = one(U)
 
-    Jeval = zeros(U, n, n)
-    dxeval = zeros(U, n)
-    xzero = zeros(U, n)
+    
 
     ###
 
@@ -69,9 +68,17 @@ function LPContinuation(f!, lp_ini::LimitPoint{U},
 
     f!(dx, xaux, params, zero(U))
 
-    TaylorSeries.jacobian!(Jeval, dx)
+    for comp1 in 1:n-2
+        for comp2 in 1:n
+            Jeval[comp1,comp2] = dx[comp1][1][comp2]
+        end
+        dxeval[comp1] = dx[comp1][0][1]
+    end
     
     LPJacobian!(J, Jeval, dx, q0, Φ, ordtup, n)
+    LPSystem!(F, Jeval, dxeval, q1, q0, Φ, Δs, n)
+
+    # @show F
 
     NS = nullspace(J)
 
@@ -81,7 +88,10 @@ function LPContinuation(f!, lp_ini::LimitPoint{U},
     end
 
     if size(NS, 2) > 1
-        # display(NS)
+        display(NS)
+        @show J 
+        @show F
+        println( "corank J = $(size(Jeval, 2) - rank(Jeval))" )
         error("The jacobian in the point is 2 or more corank. Exiting.")
     end
 
@@ -91,10 +101,16 @@ function LPContinuation(f!, lp_ini::LimitPoint{U},
 
     i = 2
 
-    while i <= maxsteps && pmin[1] <= q1[n-1] <= pmax[1] && pmin[2] <= q1[n] <= pmax[2]
+    while i <= maxsteps ## && pmin[1] <= q1[n-1] <= pmax[1] && pmin[2] <= q1[n] <= pmax[2]
+
+        # print("$i.")
 
         for j in 1:2*n-2
             q1[j] = q0[j] + Φ[j] * Δs
+        end
+
+        if g(q1, params, 0.0)
+            break
         end
 
         for j in 1:n
@@ -103,8 +119,15 @@ function LPContinuation(f!, lp_ini::LimitPoint{U},
 
         f!(dx, xaux, params, 0.0)
 
-        TaylorSeries.evaluate!(dx, xzero, dxeval)
-        TaylorSeries.jacobian!(Jeval, dx)
+        for comp1 in 1:n-2
+            for comp2 in 1:n
+                Jeval[comp1,comp2] = dx[comp1][1][comp2]
+            end
+            dxeval[comp1] = dx[comp1][0][1]
+        end
+
+        # TaylorSeries.evaluate!(dx, xzero, dxeval)
+        # TaylorSeries.jacobian!(Jeval, dx)
 
         LPJacobian!(J, Jeval, dx, q1, Φ, ordtup, n)
         LPSystem!(F, Jeval, dxeval, q1, q0, Φ, Δs, n)
@@ -118,15 +141,23 @@ function LPContinuation(f!, lp_ini::LimitPoint{U},
             end
 
             q1 .-= J \ F
-    
+        
+            if g(q1, params, 0.0)
+                break
+            end
+
             for k in 1:n
                 xaux[k][0][1] = q1[k]
             end
     
             f!(dx, xaux, params, 0.0)
     
-            TaylorSeries.evaluate!(dx, xzero, dxeval)
-            TaylorSeries.jacobian!(Jeval, dx)
+            for comp1 in 1:n-2
+                for comp2 in 1:n
+                    Jeval[comp1,comp2] = dx[comp1][1][comp2]
+                end
+                dxeval[comp1] = dx[comp1][0][1]
+            end
     
             LPJacobian!(J, Jeval, dx, q1, Φ, ordtup, n)
             LPSystem!(F, Jeval, dxeval, q1, q0, Φ, Δs, n)
