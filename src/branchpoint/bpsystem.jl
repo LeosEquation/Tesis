@@ -35,7 +35,7 @@ function BPSystem!(F::Array{U,1}, dxeval::Array{U, 1}, Jeval::Array{U, 2},
         F[n-2+i] = sum(q[n+k] * Jeval[k, i] for k in 1:n-2)
     end
 
-    F[2*n-3] = sum(q[n+k] * Jeval[k, n] for k in 1:n-2)
+    F[2*n-3] = sum(q[n+k] * Jeval[k, n-1] for k in 1:n-2)
     F[2*n-2] = sum(q[n+k]^2 for k in 1:n-2) - 1.0
 
     F[2*n-1] = sum((q[k] - q0[k]) * Φ[k] for k in 1:(2*n-1)) - Δs

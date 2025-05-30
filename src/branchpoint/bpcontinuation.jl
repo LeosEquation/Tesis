@@ -1,6 +1,6 @@
 
 
-function BPContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::Array{U, 1}, pmax::Array{U, 1},
+function BPContinuation(f!, g, bp_ini::BranchPoint{U}, params,
                         Δs::U, maxsteps::T, tol::U, ite::T) where {U<:Real, T<:Integer}
 
 #-
@@ -21,11 +21,9 @@ function BPContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::Array{U, 1}, p
 
     q0 = zeros(U, 2*n - 1)
     q0[1:n] .= bp_ini.x
-    q0[n+1:2*n-2] .= bp_ini.vector
+    q0[n+1:2*n-2] .= bp_ini.nullvec
 
-    q1 = zeros(U, 2*n - 1)
-    q1[1:n] .= bp_ini.x
-    q1[n+1:2*n-2] .= bp_ini.vector
+    q1 = copy(q0)
 
     dx = Array{TaylorN{U},1}(undef, n)
 
@@ -35,9 +33,8 @@ function BPContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::Array{U, 1}, p
     v = zeros(U, 2*n - 1)
     v[2*n - 1] = one(U)
 
-    Jeval = zeros(U, n, n)
-    dxeval = zeros(U, n)
-    xzero = zeros(U, n) 
+    Jeval = zeros(U, n - 2, n)
+    dxeval = zeros(U, n - 2)
     
     ###
 
@@ -51,8 +48,12 @@ function BPContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::Array{U, 1}, p
 
     f!(dx, xaux, params, zero(U))
 
-    TaylorSeries.jacobian!(Jeval, dx)
-    TaylorSeries.evaluate!(dx, xzero, dxeval)
+    for comp1 in 1:n-2
+        for comp2 in 1:n
+            Jeval[comp1,comp2] = dx[comp1][1][comp2]
+        end
+        dxeval[comp1] = dx[comp1][0][1]
+    end
 
     BPJacobian!(J, Jeval, q0, dx, Φ, ordtup, n)
     BPSystem!(F, dxeval, Jeval, q1, q0, Φ, Δs, n)
@@ -76,10 +77,14 @@ function BPContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::Array{U, 1}, p
 
     i = 2
 
-    while i <= maxsteps && pmin[1] <= q1[n-1] <= pmax[1] && pmin[2] <= q1[n] <= pmax[2]
+    while i <= maxsteps
 
         for j in 1:2*n-1
             q1[j] = q0[j] + Φ[j] * Δs
+        end
+
+        if g(q1, params, 0.0)
+            break
         end
 
         for j in 1:n
@@ -88,8 +93,12 @@ function BPContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::Array{U, 1}, p
 
         f!(dx, xaux, params, zero(U))
 
-        TaylorSeries.jacobian!(Jeval, dx)
-        TaylorSeries.evaluate!(dx, xzero, dxeval)
+        for comp1 in 1:n-2
+            for comp2 in 1:n
+                Jeval[comp1,comp2] = dx[comp1][1][comp2]
+            end
+            dxeval[comp1] = dx[comp1][0][1]
+        end
 
         BPJacobian!(J, Jeval, q1, dx, Φ, ordtup, n)
         BPSystem!(F, dxeval, Jeval, q1, q0, Φ, Δs, n)
@@ -104,14 +113,22 @@ function BPContinuation(f!, bp_ini::BranchPoint{U}, params, pmin::Array{U, 1}, p
 
             q1 .-= J \ F
 
+            if g(q1, params, 0.0)
+                break
+            end
+
             for k in 1:n
                 xaux[k][0][1] = q1[k]
             end
 
             f!(dx, xaux, params, zero(U))
 
-            TaylorSeries.jacobian!(Jeval, dx)
-            TaylorSeries.evaluate!(dx, xzero, dxeval)
+            for comp1 in 1:n-2
+                for comp2 in 1:n
+                    Jeval[comp1,comp2] = dx[comp1][1][comp2]
+                end
+                dxeval[comp1] = dx[comp1][0][1]
+            end
 
             BPJacobian!(J, Jeval, q1, dx, Φ, ordtup, n)
             BPSystem!(F, dxeval, Jeval, q1, q0, Φ, Δs, n)
