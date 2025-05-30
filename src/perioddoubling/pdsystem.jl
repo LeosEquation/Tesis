@@ -1,52 +1,79 @@
+function PDSystem!(F::Array{U, 1}, xT::Array{TaylorN{U}, 2}, 
+                      x1::Array{U, 1}, x0::Array{U, 1}, 
+                      dx0::Array{U, 1}, Φ::Array{U, 1}, Δs::U, n::T, m::T, N::T) where {U<:Real, T<:Integer}
 
-function PDJacobian!(J::Matrix{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
-                     x1::Vector{Float64}, Φ::Vector{Float64}, n::Int64)
+    comp3 = 0    
 
-    @inbounds J[1:n+2, 1:n+2] .= TaylorSeries.jacobian(dx)
-
-    @inbounds for j in 1:n+2
-        J[n+1:2*n, j] .= evaluate(differentiate.(Fx, j)) * x1[n+3:2*n+2]
+    for comp1 in 1:m-1
+        for comp2 in 1:n-2
+            comp3 += 1
+            F[comp3] = xT[comp1, comp2][0][1] - x1[n-2 + comp3]
+        end
     end
 
-    @inbounds J[n+1:2*n, n+3:2*n+2] .= evaluate(Fx)
-
-    @inbounds J[2*n+1, n+3:2*n+2] .= 2*x1[n+3:2*n+2]
-
-    @inbounds J[2*n+2, :] .= Φ
-
-end
-
-function PDSystem!(F::Vector{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
-                   x0::Vector{Float64}, x1::Vector{Float64},
-                   Φ::Vector{Float64}, Δs::Float64, n::Int64)
-
-    @inbounds F[1:n+2] .= evaluate(dx)
-    @inbounds F[(n+1):(2*n)] .= evaluate(Fx) * x1[n+3:2*n+2]
-    @inbounds F[2*n+1] = dot(x1[n+3:2*n+2], x1[n+3:2*n+2]) - 1.0
-    @inbounds F[2*n+2] = dot(x1 - x0, Φ) - Δs
-
-end
-
-function PDJacobian!(J::Matrix{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
-                     x1::Vector{Float64}, n::Int64)
-
-    @inbounds J[1:n+1, 1:n+1] .= TaylorSeries.jacobian(dx)
-
-    @inbounds for j in 1:n+1
-        J[n+1:2*n, j] .= evaluate(differentiate.(Fx, j)) * x1[n+2:2*n+1]
+    for comp2 in 1:n-2
+        comp3 += 1
+        F[comp3] = x1[comp3] - x1[comp2]
     end
 
-    @inbounds J[n+1:2*n, n+2:2*n+1] .= evaluate(Fx)
+    comp4 = comp3
 
-    @inbounds J[2*n+1, n+2:2*n+1] .= 2*x1[n+2:2*n+1]
+    for comp1 in 1:m-1
+        for comp2 in 1:n-2
+            comp3 += 1
+            F[comp3] = xT[comp1, comp2][0][1] - x1[comp4 + n-2 + comp3]
+        end
+    end
 
+    for comp2 in 1:n-2
+        comp3 += 1
+        F[comp3] = x1[comp3] - x1[comp4 + comp2]
+    end
+
+    F[N-1] = sum((x1[i] - x0[i]) * dx0[i] for i in 1:n-2)
+    F[N] = sum((x1[i] - x0[i]) * Φ[i]   for i in 1:N) - Δs
+
+    return nothing
 end
 
-function PDSystem!(F::Vector{Float64}, Fx::Matrix{TaylorN{Float64}}, dx::Vector{TaylorN{Float64}},
-                   x1::Vector{Float64}, n::Int64)
+function PDJacobian!(J::Array{U,2}, xT::Array{TaylorN{U},2}, 
+                       dx0::Array{U,1}, Φ::Array{U,1}, n::T, m::T, N::T) where {U<:Real, T<:Integer}
+    
+    n_minus_2 = n - 2
+    oneU = one(U)
+    
+    @inbounds for comp1 in 1:m
+        comp1_offset = (comp1-1)*n_minus_2
+        for comp2 in 1:n_minus_2
+            comp2_idx = comp1_offset + comp2
+            
+            if comp1 < m
+            # Set the main block
+                for comp3 in 1:n_minus_2
+                    J[comp2_idx, comp1_offset + comp3] = xT[comp1, comp2][1][comp3]
+                end
 
-    @inbounds F[1:n+1] .= evaluate(dx)
-    @inbounds F[n+1:2*n] .= evaluate(Fx) * x1[n+2:2*n+1]
-    @inbounds F[2*n+1] = dot(x1[n+2:2*n+1], x1[n+2:2*n+1]) - 1.0
+                J[comp2_idx, comp2_idx + n_minus_2] = -oneU
 
+                J[comp2_idx, N-1] = xT[comp1, comp2][1][n-1]
+                J[comp2_idx, N] = xT[comp1, comp2][1][n]
+            else
+                J[comp2_idx, comp2] = -oneU
+                J[comp2_idx, comp2_idx] = oneU
+                J[comp2_idx, N-1] = 0.0
+                J[comp2_idx, N] = 0.0
+            end
+            
+        end
+    end
+
+    # Set the second-to-last row
+    @inbounds for i in 1:n_minus_2
+        J[N-1, i] = dx0[i]
+    end
+    
+    # Set the last row
+    @inbounds J[N, :] = Φ
+    
+    return nothing
 end
