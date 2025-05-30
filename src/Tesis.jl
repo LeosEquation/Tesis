@@ -1,8 +1,11 @@
-using TaylorIntegration, TaylorSeries, LinearAlgebra
+using TaylorIntegration, TaylorSeries, LinearAlgebra, PeriodicSchurDecompositions
 
 # Inicializando objetos
 include("./objects/equilibria.jl")
+include("./objects/orbits.jl")
 include("./inicialization/taylornini.jl")
+
+include("./ploting/ploteqbranch.jl")
 
 # Inicializando operaciones extra
 include("./operations/adjugate.jl")
@@ -13,6 +16,7 @@ include("./equilibria/eqfinding.jl")
 include("./equilibria/eqsystem.jl")
 include("./equilibria/eqcontinuation.jl")
 include("./equilibria/branchswitching.jl")
+include("./equilibria/hamiltonian.jl")
 
 # Limit Points
 include("./limitpoint/lpfinding.jl")
@@ -34,6 +38,7 @@ include("./orbits/orbitfinding.jl")
 include("./orbits/orbitsystem.jl")
 include("./orbits/orbitcontinuation.jl")
 include("./orbits/multishooting.jl")
+include("./orbits/hamiltonian.jl")
 
 # Limit Point Cycle
 include("./limitpointcycle/lpcfinding.jl")
@@ -48,6 +53,7 @@ include("./perioddoubling/pdcontinuation.jl")
 # Poincare Section 
 include("./poincaresection/poincaresection.jl")
 include("./poincaresection/energylims.jl")
+include("./poincaresection/energyfinding.jl")
 
 # Hamiltonian Orbits 
 include("./hamiltonianorbits/orbitfinding.jl")
